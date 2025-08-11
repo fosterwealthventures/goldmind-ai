@@ -8,17 +8,29 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    # Make secrets available to all steps
     env:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GCP_REGION: ${{ secrets.GCP_REGION }}
       GCP_SERVICE: ${{ secrets.GCP_SERVICE }}
-      # Optional runtime SA for the Cloud Run service (NOT the build SA)
+      # Optional runtime SA (NOT build SA)
       GCP_RUNTIME_SA: ${{ secrets.GCP_RUNTIME_SA }}
+
+      # --- Tunables ---
+      CLOUD_RUN_CPU: "1"           # 1 | 2 | 4
+      CLOUD_RUN_MEMORY: "1Gi"      # 512Mi | 1Gi | 2Gi | ...
+      CLOUD_RUN_CONCURRENCY: "80"  # requests per instance
+      CLOUD_RUN_TIMEOUT: "60"      # seconds
+      CLOUD_RUN_MIN_INSTANCES: "0" # set to 1+ to avoid cold start
+      CLOUD_RUN_MAX_INSTANCES: "10"
+      CLOUD_RUN_EXEC_ENV: "gen2"
 
     steps:
       - uses: actions/checkout@v4
@@ -34,20 +46,9 @@ jobs:
           project_id: ${{ env.GCP_PROJECT_ID }}
           export_default_credentials: true
 
-      - name: Validate inputs
-        run: |
-          set -euo pipefail
-          test -n "${GCP_PROJECT_ID}" || (echo "Missing GCP_PROJECT_ID"; exit 1)
-          test -n "${GCP_REGION}"     || (echo "Missing GCP_REGION"; exit 1)
-          test -n "${GCP_SERVICE}"    || (echo "Missing GCP_SERVICE"; exit 1)
-          gcloud --version
-
       - name: Enable required APIs (idempotent)
         run: |
-          gcloud services enable \
-            run.googleapis.com \
-            cloudbuild.googleapis.com \
-            artifactregistry.googleapis.com
+          gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
 
       - name: Deploy to Cloud Run (build from source)
         run: |
@@ -62,6 +63,13 @@ jobs:
             --region="${GCP_REGION}" \
             --source="." \
             --allow-unauthenticated \
+            --execution-environment="${CLOUD_RUN_EXEC_ENV}" \
+            --cpu="${CLOUD_RUN_CPU}" \
+            --memory="${CLOUD_RUN_MEMORY}" \
+            --concurrency="${CLOUD_RUN_CONCURRENCY}" \
+            --timeout="${CLOUD_RUN_TIMEOUT}" \
+            --min-instances="${CLOUD_RUN_MIN_INSTANCES}" \
+            --max-instances="${CLOUD_RUN_MAX_INSTANCES}" \
             ${RUNTIME_FLAG}
 
       - name: Smoke test
