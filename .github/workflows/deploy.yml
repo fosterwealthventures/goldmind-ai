@@ -1,4 +1,3 @@
-# .github/workflows/deploy.yml
 name: Deploy to Cloud Run
 on:
   push:
@@ -20,35 +19,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1) AUTH FIRST (this is what was missing)
+      # Auth FIRST
       - name: Google Auth (JSON key)
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # 2) Then install gcloud (now it will be authenticated)
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # 3) Sanity check
       - name: Verify auth
         run: |
           echo "Active account:"
-          gcloud auth list --filter=status:ACTIVE --format="value(account)"
+          gcloud auth list --filter=status:ACTIVE --format='value(account)'
           gcloud config set project "$GCP_PROJECT_ID"
 
-      # 4) Deploy
+      # Compute which SA Cloud Build should use
+      - name: Compute build service account
+        id: buildsa
+        run: |
+          set -euo pipefail
+          PRJNUM=$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')
+          echo "BUILD_SA=${PRJNUM}@cloudbuild.gserviceaccount.com" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy "$GCP_SERVICE" \
             --source . \
             --region "$GCP_REGION" \
             --project "$GCP_PROJECT_ID" \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --build-service-account "${{ steps.buildsa.outputs.BUILD_SA }}"
 
-      # 5) Smoke test (uses custom domain if provided; else service URL)
       - name: Smoke test
         run: |
           set -euo pipefail
