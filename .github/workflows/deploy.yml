@@ -27,8 +27,8 @@ jobs:
       - name: Manual gcloud auth (JSON key from secret)
         run: |
           set -euo pipefail
-          echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/key.json"
-          # sanity-check JSON and show which account is inside (no secrets printed)
+          printf '%s' '${{ secrets.GCP_SA_KEY }}' > "$HOME/key.json"
+          # show which account is in the key (no secrets printed)
           python - <<'PY'
           import json, os
           p = os.path.expanduser(os.path.join(os.environ['HOME'],'key.json'))
@@ -39,12 +39,7 @@ jobs:
           gcloud config set project "$GCP_PROJECT_ID"
           echo ">> Active gcloud account:"
           gcloud auth list --filter=status:ACTIVE --format="value(account)"
-          # hard fail if no active account
-          test -n "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" || (echo 'No active account' && exit 1)
-
-      - name: Enable required APIs
-        run: |
-          gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+          test -n "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" || (echo 'No active gcloud account' && exit 1)
 
       - name: Deploy to Cloud Run
         run: |
