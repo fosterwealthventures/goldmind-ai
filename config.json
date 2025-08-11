@@ -1,0 +1,138 @@
+{
+  "symbol": "GLD",
+  "lstm": {
+    "seq_len": 60,
+    "features": ["Close"]
+  },
+  "model_path": "",
+  "system": {
+    "environment": "development",
+    "live_mode": false,
+    "auto_update": true,
+    "log_level": "INFO"
+  },
+  "financial_data_api": {
+    "twelvedata_api_key": "c90928ceec19422d903eba1807fba5c7",
+    "alpha_vantage_api_key": "HXQ3NM9SFITYCH9A",
+    "fred_api_key": "8d06efa8774bb69218feb064f3bbf3b",
+    "fred_series_id": "GOLDAMGBD228NLBM",
+    "metalprice_api_key": "22fc58554c768684de3a2b60076f70d7",
+    "metals_api_base_url": "https://metals-api.com/api",
+    "goldpricez_api_key": "0ee9b23ca194061b8d58895e6933b7b10ee9b23c",
+    "goldpricez_base_url": "https://goldpricez.com/api",
+    "use_yfinance": true,
+    "yfinance_symbol": "GC=F"
+  },
+  "goldmind_client": {
+  "api_url": "https://api.fwvgoldmindai.com",
+  "api_key": "8437a1c8d2e04f53a79f23cf"
+},
+
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "debug": false,
+    "workers": 4,
+    "timeout": 30
+  },
+  "database": {
+    "path": "./data/goldmind_ai.db",
+    "backup_interval": 3600,
+    "create_samples": false
+  },
+  "market_data": {
+    "update_interval": 30,
+    "demo_mode": true,
+    "provider": "auto",
+    "max_history_size": 5000,
+    "retry_attempts": 5,
+    "retry_delay": 10,
+    "gold_ohlcv_symbol": "XAU/USD"
+  },
+  "ml_models": {
+    "retrain_interval": 86400,
+    "confidence_threshold": 0.6,
+    "auto_update": true,
+    "gpu_enabled": false,
+    "sequence_length": 60,
+    "lstm_units": 64,
+    "dropout_rate": 0.2,
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "# For inference only: path to load existing model": "",
+    "model_path": "",
+    "model_sha256": "",
+    "training": {
+      "enabled": true,
+      "epochs": 50,
+      "save_dir": "./models",
+      "filename_format": "production_goldmind_{date}.h5",
+      "save_interval_epochs": 5
+    },
+    "lookback_days": 100,
+    "example_input": "What is the outlook for gold today?",
+    "example_user_id": 123
+  },
+  "analytics": {
+    "enable_realtime": true,
+    "retention_days": 90,
+    "update_interval": 3600,
+    "cache_timeout": 300
+  },
+  "security": {
+    "enable_audit_log": true,
+    "session_timeout": 7200,
+    "max_login_attempts": 5,
+    "block_duration_minutes": 15
+  },
+  "auto_hedging": {
+    "risk_trigger": 7.0,
+    "max_exposure": 0.15,
+    "cost_limit": 50,
+    "auto_execute": false,
+    "monitoring_interval": 300,
+    "circuit_breaker": 9.5,
+    "max_hedge_duration": 45
+  },
+  "model_performance": {
+    "accuracy_threshold": 0.75,
+    "response_time_threshold": 1000,
+    "error_rate_threshold": 0.05,
+    "drift_threshold": 0.3,
+    "resource_threshold": 80,
+    "throughput_threshold": 5,
+    "auto_fallback": true,
+    "fallback_threshold": 0.6,
+    "fallback_delay_minutes": 5,
+    "recovery_threshold": 0.8,
+    "max_fallback_duration": 1440,
+    "strategy": "gradual",
+    "canary_percentage": 10,
+    "monitoring_interval": 300
+  },
+  "dual_system": {
+    "analytical_weight": 0.4,
+    "ml_weight": 0.3,
+    "lstm_weight": 0.3,
+    "hybrid_weight": 0.5,
+    "bias_threshold": 0.7,
+    "consensus_threshold": 0.8,
+    "uncertainty_penalty": 0.15,
+    "bias_penalty_factor": 0.2,
+    "bias_detection_enabled": true,
+    "bias_report_threshold": 60,
+    "pathway_weights": {},
+    "conflict_strategy": "confidence_based"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "db": 0,
+    "password": null
+  },
+  "ultimate_manager": {
+    "regime_adaptation_enabled": true,
+    "personalization_enabled": true,
+    "adaptive_learning_enabled": true
+  }
+}

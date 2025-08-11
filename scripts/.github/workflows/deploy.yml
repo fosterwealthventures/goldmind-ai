@@ -1,0 +1,50 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'   # required for Workload Identity Federation
+
+    env:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ secrets.GCP_REGION }}
+      GCP_SERVICE: ${{ secrets.GCP_SERVICE }}            # e.g., goldmind-api
+      CLOUD_RUN_DOMAIN: ${{ secrets.CLOUD_RUN_DOMAIN }}  # e.g., https://api.fwvgoldmindai.com
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Google Auth (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: gcloud info
+        run: gcloud --version
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$GCP_SERVICE" \
+            --source . \
+            --region "$GCP_REGION" \
+            --allow-unauthenticated \
+            --project "$GCP_PROJECT_ID"
+
+      - name: Run smoke tests against mapped domain
+        run: |
+          chmod +x scripts/smoke.sh
+          ./scripts/smoke.sh "$CLOUD_RUN_DOMAIN"

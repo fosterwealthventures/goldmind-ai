@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  goldmind-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - mock-goldmind-api
+
+    environment:
+      # This is crucial for local testing. It points your client
+      # to the mock API running in the other container.
+      # - GOLDMIND_API_URL=https://api.fwvgoldmindai.com
+          - GOLDMIND_API_URL=${GOLDMIND_API_URL}
+          - GOLDMIND_API_KEY=${GOLDMIND_API_KEY}
+
+  mock-goldmind-api:
+    build:
+      context: .
+      dockerfile: mock_api.Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./mock_api.py:/app/mock_api.py

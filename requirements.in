@@ -1,0 +1,82 @@
+# ==============================================================================
+# GoldMIND AI System - Primary Dependency List (requirements.in)
+# ==============================================================================
+# This file lists the top-level dependencies required by the project.
+# It is used by 'pip-compile' to generate a complete and pinned 'requirements.txt' file.
+
+# --- Core Data & Machine Learning ---
+
+# yfinance: Fetches historical market data from Yahoo! Finance.
+# This is a core dependency for your FinancialDataFramework.
+yfinance>=0.2.28
+
+# pandas: High-performance data structures and data analysis tools.
+# Essential for handling OHLCV data.
+pandas>=2.0.0
+
+# numpy: The fundamental package for scientific computing with Python.
+# A core dependency for pandas and most numerical operations.
+numpy>=1.24.2
+
+# tensorflow: The machine learning framework used for your LSTM model.
+# Pinning to a specific major version for stability is recommended.
+tensorflow>=2.10.0
+
+# scikit-learn: Provides data preprocessing utilities (e.g., MinMaxscaler) for your ML models.
+scikit-learn>=1.2.0
+
+# --- Asynchronous I/O & HTTP Requests ---
+
+# aiohttp: An asynchronous HTTP client/server framework for asyncio.
+# Used for making non-blocking API calls in the FinancialDataFramework.
+aiohttp>=3.8.1
+
+# --- Logging ---
+
+# structlog: A modern, production-friendly logging library for Python.
+# Provides structured, machine-readable log output.
+structlog>=23.1.0
+
+# --- Environment & Configuration ---
+
+# python-dotenv: A utility to read key-value pairs from a .env file.
+# Useful for loading API keys and other settings.
+python-dotenv>=1.0.0
+
+# --- Web Server & API ---
+
+# Flask: A lightweight WSGI web application framework.
+# Used for building your REST API endpoints.
+Flask>=2.2.0
+
+
+# gunicorn: A production-ready WSGI HTTP server.
+# Used to serve your Flask application in production.
+gunicorn>=20.1.0
+
+# Werkzeug: A comprehensive WSGI web application library.
+# A dependency of Flask.
+Werkzeug>=2.2.0
+
+# Itsdangerous: Implements various helpers to pass trusted data to untrusted environments.
+# A dependency for session security.
+itsdangerous>=2.1.2
+
+# --- Cloud Integration (Choose one or more) ---
+
+# For Amazon S3, Glacier, etc.
+# boto3: The AWS SDK for Python.
+# Used for interacting with various AWS services, including S3.
+boto3>=1.26.0
+
+# For Google Cloud Storage.
+# google-cloud-storage: Official Google Cloud client library.
+google-cloud-storage>=2.0.0
+
+# For Azure Blob Storage.
+# azure-storage-blob: Official Microsoft Azure client library.
+azure-storage-blob>=12.16.0
+
+# allow CORS and satisfy flask-limiter
+flask-cors>=3.0.10
+rich<14,>=12
