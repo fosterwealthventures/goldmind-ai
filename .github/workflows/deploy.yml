@@ -16,18 +16,19 @@ jobs:
       CLOUD_RUN_DOMAIN: ${{ secrets.CLOUD_RUN_DOMAIN }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Auth to Google Cloud (JSON key)
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: actions/checkout@v4
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Write SA key and activate
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > $HOME/key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/key.json" >> $GITHUB_ENV
+          gcloud auth activate-service-account --key-file="$HOME/key.json"
+          gcloud config set project "$GCP_PROJECT_ID"
 
       - name: Enable required APIs
         run: |
