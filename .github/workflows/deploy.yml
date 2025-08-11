@@ -1,3 +1,4 @@
+# .github/workflows/deploy.yml
 name: Deploy to Cloud Run
 
 on:
@@ -5,57 +6,64 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-concurrency:
-  group: cloud-run-deploy
-  cancel-in-progress: true
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  GCP_SERVICE: ${{ secrets.GCP_SERVICE }}
+  CLOUD_RUN_DOMAIN: ${{ secrets.CLOUD_RUN_DOMAIN }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    env:
-      # Required repo secrets:
-      #   GCP_PROJECT_ID, GCP_REGION, GCP_SERVICE, GCP_SA_KEY
-      # Optional:
-      #   CLOUD_RUN_DOMAIN (e.g., https://api.example.com)
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GCP_REGION: ${{ secrets.GCP_REGION }}
-      GCP_SERVICE: ${{ secrets.GCP_SERVICE }}
-      CLOUD_RUN_DOMAIN: ${{ secrets.CLOUD_RUN_DOMAIN }}
-      # Use the GitHub deployer SA for the build phase (no project-number lookup needed)
-      GCP_BUILD_SA: github-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
     steps:
       - uses: actions/checkout@v4
 
-      # 1) Authenticate gcloud using your JSON key secret
+      # Authenticate using your JSON key secret
       - name: Google Auth (JSON key)
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # 2) Install gcloud SDK and set project
+      # Install gcloud and set the project
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
+          install_components: "alpha,beta"
 
-      # 3) (Optional but helpful) Make sure the core APIs are enabled
-      - name: Enable required APIs
+      - name: Verify auth & project
         run: |
           set -euo pipefail
-          gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
-
-      # 4) Sanity check the active account and project
-      - name: Verify auth
-        run: |
-          set -euo pipefail
-          echo "Active account:" "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+          gcloud --version
           gcloud config set project "$GCP_PROJECT_ID"
+          echo "Active account:"
+          gcloud auth list --filter=status:ACTIVE --format="value(account)"
 
-      # 5) Deploy from source to Cloud Run and tell Cloud Build which SA to use
+      # Compute the Cloud Build service account (resource name form)
+      - name: Compute build service account
+        id: buildsa
+        run: |
+          set -euo pipefail
+          PRJNUM="$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')"
+          echo "Project number: $PRJNUM"
+          BUILD_SA="projects/${GCP_PROJECT_ID}/serviceAccounts/${PRJNUM}@cloudbuild.gserviceaccount.com"
+          echo "BUILD_SA=${BUILD_SA}" >> "$GITHUB_OUTPUT"
+
+      # Optional: enabling APIs here requires 'Service Usage Admin'; keep non-blocking
+      - name: Enable required APIs (non-blocking)
+        continue-on-error: true
+        run: |
+          gcloud services enable \
+            run.googleapis.com \
+            cloudbuild.googleapis.com \
+            artifactregistry.googleapis.com
+
+      # Deploy using Cloud Build SA
       - name: Deploy to Cloud Run
         run: |
           set -euo pipefail
@@ -64,9 +72,9 @@ jobs:
             --region "$GCP_REGION" \
             --project "$GCP_PROJECT_ID" \
             --allow-unauthenticated \
-            --build-service-account "$GCP_BUILD_SA"
+            --build-service-account "${{ steps.buildsa.outputs.BUILD_SA }}"
 
-      # 6) Simple smoke test (uses custom domain if provided; else service URL)
+      # Simple smoke test: custom domain if provided; otherwise service URL
       - name: Smoke test
         run: |
           set -euo pipefail
@@ -74,6 +82,6 @@ jobs:
           if [ -z "$URL" ]; then
             URL="$(gcloud run services describe "$GCP_SERVICE" --region "$GCP_REGION" --format='value(status.url)')"
           fi
-          echo "Testing $URL"
+          echo "Hitting $URL ..."
           (curl -fsS "$URL/health" || curl -fsS "$URL") >/dev/null
           echo "✅ Smoke test passed for $URL"
