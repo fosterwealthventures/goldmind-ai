@@ -1,58 +1,72 @@
 name: Deploy to Cloud Run
+
 on:
   push:
     branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: cloud-run-deploy
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
 
     env:
+      # Required repo secrets:
+      #   GCP_PROJECT_ID, GCP_REGION, GCP_SERVICE, GCP_SA_KEY
+      # Optional:
+      #   CLOUD_RUN_DOMAIN (e.g., https://api.example.com)
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GCP_REGION: ${{ secrets.GCP_REGION }}
       GCP_SERVICE: ${{ secrets.GCP_SERVICE }}
       CLOUD_RUN_DOMAIN: ${{ secrets.CLOUD_RUN_DOMAIN }}
+      # Use the GitHub deployer SA for the build phase (no project-number lookup needed)
+      GCP_BUILD_SA: github-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
     steps:
       - uses: actions/checkout@v4
 
-      # Auth FIRST
+      # 1) Authenticate gcloud using your JSON key secret
       - name: Google Auth (JSON key)
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+      # 2) Install gcloud SDK and set project
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
 
-      - name: Verify auth
-        run: |
-          echo "Active account:"
-          gcloud auth list --filter=status:ACTIVE --format='value(account)'
-          gcloud config set project "$GCP_PROJECT_ID"
-
-      # Compute which SA Cloud Build should use
-      - name: Compute build service account
-        id: buildsa
+      # 3) (Optional but helpful) Make sure the core APIs are enabled
+      - name: Enable required APIs
         run: |
           set -euo pipefail
-          PRJNUM=$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')
-          echo "BUILD_SA=${PRJNUM}@cloudbuild.gserviceaccount.com" >> "$GITHUB_OUTPUT"
+          gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
 
+      # 4) Sanity check the active account and project
+      - name: Verify auth
+        run: |
+          set -euo pipefail
+          echo "Active account:" "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+          gcloud config set project "$GCP_PROJECT_ID"
+
+      # 5) Deploy from source to Cloud Run and tell Cloud Build which SA to use
       - name: Deploy to Cloud Run
         run: |
+          set -euo pipefail
           gcloud run deploy "$GCP_SERVICE" \
             --source . \
             --region "$GCP_REGION" \
             --project "$GCP_PROJECT_ID" \
             --allow-unauthenticated \
-            --build-service-account "${{ steps.buildsa.outputs.BUILD_SA }}"
+            --build-service-account "$GCP_BUILD_SA"
 
+      # 6) Simple smoke test (uses custom domain if provided; else service URL)
       - name: Smoke test
         run: |
           set -euo pipefail
