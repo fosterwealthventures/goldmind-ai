@@ -3,48 +3,53 @@ name: Deploy to Cloud Run
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     permissions:
-      contents: 'read'
-      id-token: 'write'   # required for Workload Identity Federation
+      contents: read
 
     env:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GCP_REGION: ${{ secrets.GCP_REGION }}
-      GCP_SERVICE: ${{ secrets.GCP_SERVICE }}            # e.g., goldmind-api
-      CLOUD_RUN_DOMAIN: ${{ secrets.CLOUD_RUN_DOMAIN }}  # e.g., https://api.fwvgoldmindai.com
+      GCP_SERVICE: ${{ secrets.GCP_SERVICE }}
+      CLOUD_RUN_DOMAIN: ${{ secrets.CLOUD_RUN_DOMAIN }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Google Auth (Workload Identity Federation)
+      - name: Validate required secrets
+        run: |
+          [ -z "${{ secrets.GCP_SA_KEY }}" ] && echo "Missing GCP_SA_KEY" && exit 1
+          [ -z "${{ secrets.GCP_PROJECT_ID }}" ] && echo "Missing GCP_PROJECT_ID" && exit 1
+          [ -z "${{ secrets.GCP_REGION }}" ] && echo "Missing GCP_REGION" && exit 1
+          [ -z "${{ secrets.GCP_SERVICE }}" ] && echo "Missing GCP_SERVICE" && exit 1
+
+      - name: Auth to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          create_credentials_file: true
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: gcloud info
-        run: gcloud --version
+      - name: Enable required APIs
+        run: |
+          gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
 
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run (build from source)
         run: |
           gcloud run deploy "$GCP_SERVICE" \
             --source . \
             --region "$GCP_REGION" \
-            --allow-unauthenticated \
-            --project "$GCP_PROJECT_ID"
+            --project "$GCP_PROJECT_ID" \
+            --allow-unauthenticated
 
-      - name: Run smoke tests against mapped domain
+      - name: Smoke test
         run: |
           chmod +x scripts/smoke.sh
           ./scripts/smoke.sh "$CLOUD_RUN_DOMAIN"
