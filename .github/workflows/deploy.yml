@@ -1,61 +1,24 @@
-name: Deploy to Cloud Run
+# .github/workflows/auth-check.yml
+name: Auth Check
 on:
-  push:
-    branches: [ "main" ]
+  workflow_dispatch: {}   # run it manually from the Actions tab
 
 jobs:
-  deploy:
+  check:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    env:
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GCP_REGION: ${{ secrets.GCP_REGION }}
-      GCP_SERVICE: ${{ secrets.GCP_SERVICE }}
-      CLOUD_RUN_DOMAIN: ${{ secrets.CLOUD_RUN_DOMAIN }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup gcloud
+      - name: Install gcloud
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Manual gcloud auth (JSON key from secret)
+      - name: Write key from secret and auth
         run: |
           set -euo pipefail
-          printf '%s' '${{ secrets.GCP_SA_KEY }}' > "$HOME/key.json"
-          # show which account is in the key (no secrets printed)
+          printf '%s' '${{ secrets.GCP_SA_KEY }}' > $HOME/key.json
           python - <<'PY'
           import json, os
-          p = os.path.expanduser(os.path.join(os.environ['HOME'],'key.json'))
-          with open(p) as f: data = json.load(f)
-          print("Loaded SA key for:", data.get("client_email","<missing>"))
+          print("client_email:", json.load(open(os.path.expanduser('~/key.json')))['client_email'])
           PY
           gcloud auth activate-service-account --key-file="$HOME/key.json"
-          gcloud config set project "$GCP_PROJECT_ID"
-          echo ">> Active gcloud account:"
+          gcloud config set project "${{ secrets.GCP_PROJECT_ID }}"
+          echo "Active account:"
           gcloud auth list --filter=status:ACTIVE --format="value(account)"
-          test -n "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" || (echo 'No active gcloud account' && exit 1)
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy "$GCP_SERVICE" \
-            --source . \
-            --region "$GCP_REGION" \
-            --project "$GCP_PROJECT_ID" \
-            --allow-unauthenticated
-
-      - name: Smoke test (use service URL if DOMAIN not set)
-        run: |
-          set -euo pipefail
-          URL="${CLOUD_RUN_DOMAIN:-}"
-          if [ -z "$URL" ]; then
-            URL="$(gcloud run services describe "$GCP_SERVICE" --region "$GCP_REGION" --format='value(status.url)')"
-          fi
-          echo "Testing $URL"
-          (curl -fsS "$URL/health" || curl -fsS "$URL") >/dev/null
-          echo "✅ Smoke test passed for $URL"
