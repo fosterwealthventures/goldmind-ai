@@ -1,5 +1,4 @@
 name: Deploy to Cloud Run
-
 on:
   push:
     branches: [ "main" ]
@@ -20,14 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate required secrets
-        run: |
-          [ -z "${{ secrets.GCP_SA_KEY }}" ] && echo "Missing GCP_SA_KEY" && exit 1
-          [ -z "${{ secrets.GCP_PROJECT_ID }}" ] && echo "Missing GCP_PROJECT_ID" && exit 1
-          [ -z "${{ secrets.GCP_REGION }}" ] && echo "Missing GCP_REGION" && exit 1
-          [ -z "${{ secrets.GCP_SERVICE }}" ] && echo "Missing GCP_SERVICE" && exit 1
-
-      - name: Auth to Google Cloud
+      - name: Auth to Google Cloud (JSON key)
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -41,7 +33,7 @@ jobs:
         run: |
           gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
 
-      - name: Deploy to Cloud Run (build from source)
+      - name: Deploy to Cloud Run
         run: |
           gcloud run deploy "$GCP_SERVICE" \
             --source . \
