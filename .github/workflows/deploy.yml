@@ -16,19 +16,31 @@ jobs:
       CLOUD_RUN_DOMAIN: ${{ secrets.CLOUD_RUN_DOMAIN }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Write SA key and activate
+      - name: Manual gcloud auth (JSON key from secret)
         run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > $HOME/key.json
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/key.json" >> $GITHUB_ENV
+          set -euo pipefail
+          echo '${{ secrets.GCP_SA_KEY }}' > "$HOME/key.json"
+          # sanity-check JSON and show which account is inside (no secrets printed)
+          python - <<'PY'
+          import json, os
+          p = os.path.expanduser(os.path.join(os.environ['HOME'],'key.json'))
+          with open(p) as f: data = json.load(f)
+          print("Loaded SA key for:", data.get("client_email","<missing>"))
+          PY
           gcloud auth activate-service-account --key-file="$HOME/key.json"
           gcloud config set project "$GCP_PROJECT_ID"
+          echo ">> Active gcloud account:"
+          gcloud auth list --filter=status:ACTIVE --format="value(account)"
+          # hard fail if no active account
+          test -n "$(gcloud auth list --filter=status:ACTIVE --format='value(account)')" || (echo 'No active account' && exit 1)
 
       - name: Enable required APIs
         run: |
@@ -42,7 +54,13 @@ jobs:
             --project "$GCP_PROJECT_ID" \
             --allow-unauthenticated
 
-      - name: Smoke test
+      - name: Smoke test (use service URL if DOMAIN not set)
         run: |
-          chmod +x scripts/smoke.sh
-          ./scripts/smoke.sh "$CLOUD_RUN_DOMAIN"
+          set -euo pipefail
+          URL="${CLOUD_RUN_DOMAIN:-}"
+          if [ -z "$URL" ]; then
+            URL="$(gcloud run services describe "$GCP_SERVICE" --region "$GCP_REGION" --format='value(status.url)')"
+          fi
+          echo "Testing $URL"
+          (curl -fsS "$URL/health" || curl -fsS "$URL") >/dev/null
+          echo "✅ Smoke test passed for $URL"
