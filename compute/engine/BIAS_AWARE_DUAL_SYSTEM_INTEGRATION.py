@@ -24,7 +24,7 @@ try:
         PathwayType
     )
     from lstm_temporal_analysis import LSTMTemporalAnalysis
-    from goldmind_client import GoldMINDClient as Goldmind
+    from engine.goldmind_client import GoldMINDClient as Goldmind
     from financial_data_framework import FinancialDataFramework
 except ImportError as e:
     logging.critical(f"❌ Dependency import failed: {e}")

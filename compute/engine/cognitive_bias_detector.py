@@ -1,7 +1,7 @@
 # cognitive_bias_detector.py
 import logging
 from typing import Any, Dict
-from goldmind_client import GoldMINDClient
+from engine.goldmind_client import GoldMINDClient
 
 class CognitiveBiasDetector:
     """

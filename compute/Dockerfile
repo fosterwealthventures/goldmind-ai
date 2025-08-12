@@ -13,9 +13,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app + engine + assets
 COPY app ./app
 COPY engine ./engine
-COPY data ./data
+# Optional if actually used:
 COPY lstm_models ./lstm_models
-COPY config.json ./config.json
+COPY data ./data
+# No separate COPY for config.json now
+
 
 ENV PORT=8080
 EXPOSE 8080

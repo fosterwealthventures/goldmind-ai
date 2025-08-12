@@ -583,7 +583,7 @@ class UltimateBiasAwareManager:
 
 
         try:
-            from goldmind_integration import Goldmind
+            from engine.goldmind_integration import Goldmind
             goldmind_client = Goldmind(api_key=goldmind_api_key_val)
             logger.info("✅ Goldmind client initialized successfully.")
         except ImportError:
