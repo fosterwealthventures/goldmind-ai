@@ -1,0 +1,8 @@
+Flask>=2.3
+gunicorn>=21.2
+python-dotenv>=1.0
+# Heavy stack – adjust to your exact versions that work with Py 3.10
+numpy>=1.26
+pandas>=2.2
+scikit-learn>=1.4
+tensorflow==2.13.*           # or pin to what you trained with

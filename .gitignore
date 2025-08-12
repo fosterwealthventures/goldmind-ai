@@ -1,29 +1,22 @@
 # Python
 __pycache__/
-*.py[cod]
-*.pyo
-*.so
-*.egg-info/
+*.pyc
+
+# Envs
 .env
-.env.*
-.venv/
 venv/
-pip-wheel-metadata/
+.venv/
 
-# Data & models (adjust as needed)
-data/
+# Logs
 logs/
-lstm_models/
-*.h5
-*.ckpt
-*.pth
-*.onnx
+*.log
 
-# OS/Editor
-.DS_Store
-.vscode/
-.idea/
-
-# Build/Dist
-build/
+# Build junk
 dist/
+build/
+.eggs/
+*.egg-info/
+
+# IDE
+.vscode/
+.DS_Store

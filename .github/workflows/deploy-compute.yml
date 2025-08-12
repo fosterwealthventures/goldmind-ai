@@ -1,0 +1,52 @@
+name: Deploy Compute (heavy)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'compute/**'
+      - '.github/workflows/deploy-compute.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  GCP_SERVICE: goldmind-compute
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Google Auth (JSON key)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Deploy to Cloud Run (Compute)
+        working-directory: ./compute
+        run: |
+          gcloud run deploy $GCP_SERVICE \
+            --source . \
+            --region $GCP_REGION \
+            --allow-unauthenticated \
+            --timeout 300
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          URL=$(gcloud run services describe "${{ env.GCP_SERVICE }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" --region="${{ env.GCP_REGION }}" \
+            --format='value(status.url)')
+          echo "Service URL: $URL"
+          curl -sSf "$URL/health" | jq .

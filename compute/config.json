@@ -27,6 +27,13 @@
   "api_url": "https://api.fwvgoldmindai.com",
   "api_key": "8437a1c8d2e04f53a79f23cf"
 },
+ "symbols": {
+    "twelve_data": "XAU/USD",
+    "alpha_vantage": "XAUUSD",
+    "yfinance": "GC=F",
+    "metalprice": "XAUUSD",
+    "goldpricez": "XAUUSD"
+},
 
   "server": {
     "host": "0.0.0.0",
@@ -47,7 +54,9 @@
     "max_history_size": 5000,
     "retry_attempts": 5,
     "retry_delay": 10,
-    "gold_ohlcv_symbol": "XAU/USD"
+    "gold_ohlcv_symbol": "XAU/USD",
+    "default_interval": "1h",
+    "default_range": "1month"
   },
   "ml_models": {
     "retrain_interval": 86400,
