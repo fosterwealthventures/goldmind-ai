@@ -1,24 +1,27 @@
 FROM python:3.10-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc g++ libatlas-base-dev libopenblas-dev \
-    curl ca-certificates && rm -rf /var/lib/apt/lists/*
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    DEBCONF_NOWARNINGS=yes \
+    TZ=Etc/UTC
 
 WORKDIR /app
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates apt-utils build-essential \
+  && rm -rf /var/lib/apt/lists/*
 
-COPY app ./app
-COPY engine ./engine
-# Optional if actually used:
-COPY lstm_models ./lstm_models
-COPY data ./data
-# No separate COPY for config.json now
+RUN python -m pip install --upgrade pip setuptools wheel build pip-tools
 
+COPY requirements.in /tmp/requirements.in
+RUN pip-compile -q /tmp/requirements.in -o /tmp/requirements.txt
+RUN python -m pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
+RUN mkdir -p /app/requirements && cp /tmp/requirements.txt /app/requirements/requirements.txt
 
-ENV PORT=8080
-EXPOSE 8080
+COPY app/ /app
 
-CMD ["gunicorn", "-w", "2", "-k", "gthread", "--threads", "4", "--timeout", "300", "-b", ":8080", "app.server:app"]
+CMD exec gunicorn -k gthread --workers 2 --threads 8 --timeout 120 \
+  --bind :${PORT:-8080} --chdir /app server:app

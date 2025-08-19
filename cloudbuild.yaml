@@ -1,0 +1,54 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _REGION: us-central1
+  _SERVICE_API: goldmind-api
+  _SERVICE_COMPUTE: goldmind-compute
+  _API_IMAGE: gcr.io/$PROJECT_ID/goldmind-api:$SHORT_SHA
+  _COMPUTE_IMAGE: gcr.io/$PROJECT_ID/goldmind-compute:$SHORT_SHA
+  _INTERNAL_SECRET: change-me-please  # set via substitutions or Secret Manager
+
+steps:
+# Build & push API
+- name: gcr.io/cloud-builders/docker
+  args: ['build','-f','api/Dockerfile','-t','$_API_IMAGE','api']
+- name: gcr.io/cloud-builders/docker
+  args: ['push','$_API_IMAGE']
+
+# Build & push Compute
+- name: gcr.io/cloud-builders/docker
+  args: ['build','-f','compute/Dockerfile','-t','$_COMPUTE_IMAGE','compute']
+- name: gcr.io/cloud-builders/docker
+  args: ['push','$_COMPUTE_IMAGE']
+
+# Deploy Compute first
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  entrypoint: bash
+  args:
+  - -lc
+  - |
+    gcloud run deploy $_SERVICE_COMPUTE \
+      --image $_COMPUTE_IMAGE \
+      --region $_REGION \
+      --platform managed \
+      --allow-unauthenticated \
+      --set-env-vars=APP_VERSION=$SHORT_SHA,ENV=prod,INTERNAL_SHARED_SECRET=$_INTERNAL_SECRET
+
+# Deploy API with COMPUTE_URL + CORS + same secret
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  entrypoint: bash
+  args:
+  - -lc
+  - |
+    COMPUTE_URL=$(gcloud run services describe $_SERVICE_COMPUTE --region $_REGION --format='value(status.url)')
+    gcloud run deploy $_SERVICE_API \
+      --image $_API_IMAGE \
+      --region $_REGION \
+      --platform managed \
+      --allow-unauthenticated \
+      --set-env-vars=APP_VERSION=$SHORT_SHA,ENV=prod,COMPUTE_URL=$COMPUTE_URL,INTERNAL_SHARED_SECRET=$_INTERNAL_SECRET,CORS_ALLOW_ORIGINS=https://fwvgoldmindai.com,https://www.fwvgoldmindai.com
+
+images:
+- $_API_IMAGE
+- $_COMPUTE_IMAGE

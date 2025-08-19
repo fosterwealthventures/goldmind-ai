@@ -1,63 +1,55 @@
-import os
-import logging
-from typing import Dict, Any
-from flask import Flask, jsonify, request
+from __future__ import annotations
+import os, platform
+from typing import Any
+from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
-from .aggregator import forward_to_compute
+from .aggregator import forward_json
 
 APP_VERSION = os.getenv("APP_VERSION", "v1.0.0")
-COMPUTE_URL = os.getenv("COMPUTE_URL", "").rstrip("/")
-INTERNAL_SHARED_SECRET = os.getenv("INTERNAL_SHARED_SECRET", "")
+ENV = os.getenv("ENV", "prod")
+_CORS_RAW = os.getenv("CORS_ALLOW_ORIGINS", "https://fwvgoldmindai.com,https://www.fwvgoldmindai.com")
+ALLOWED_ORIGINS = [o.strip() for o in _CORS_RAW.split(",") if o.strip()]
 
-def create_app() -> Flask:
-    app = Flask(__name__)
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1)  # Cloud Run proxy
-    CORS(app)
+app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=False)
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - api - %(levelname)s - %(message)s"
-    )
-    log = logging.getLogger("api")
+@app.get("/health")
+def health() -> Any:
+    comp_json, comp_status = forward_json("/health", None, method="GET")
+    return jsonify({
+        "ok": True,
+        "service": "api",
+        "app_version": APP_VERSION,
+        "compute_ok": comp_status == 200,
+        "compute_state": comp_json,
+    }), 200
 
-    @app.get("/health")
-    def health():
-        return jsonify({"status": "ok", "service": "api", "version": APP_VERSION}), 200
+@app.get("/version")
+def version() -> Any:
+    return jsonify({"service": "api", "app_version": APP_VERSION, "python": platform.python_version(), "env": ENV}), 200
 
-    @app.get("/version")
-    def version():
-        return jsonify({"version": APP_VERSION}), 200
+@app.post("/predict")
+def predict() -> Any:
+    payload = request.get_json(silent=True) or {}
+    data, status = forward_json("/predict", payload, method="POST")
+    return make_response(data, status)
 
-    @app.post("/predict")
-    def predict():
-        # Very lean validation—no heavy libs here
-        payload: Dict[str, Any] = request.get_json(silent=True) or {}
-        symbol = payload.get("symbol", "XAU")
-        user = payload.get("user", {})
-        if not COMPUTE_URL:
-            return jsonify({"error": "COMPUTE_URL not configured"}), 500
+# --- SETTINGS endpoints (fixed: GET now implemented) ---
+@app.get("/settings")
+def get_settings() -> Any:
+    data, status = forward_json("/settings", None, method="GET")
+    return make_response(data, status)
 
-        try:
-            result = forward_to_compute(
-                compute_url=f"{COMPUTE_URL}/compute/predict",
-                json_payload={"symbol": symbol, "user": user, "options": payload.get("options", {})},
-                shared_secret=INTERNAL_SHARED_SECRET,
-                timeout_sec=int(os.getenv("COMPUTE_TIMEOUT_SEC", "55"))
-            )
-            return jsonify(result), 200
-        except Exception as e:
-            log.exception("Predict forward failed")
-            return jsonify({"error": "compute_unavailable", "detail": str(e)}), 502
+@app.put("/settings")
+def put_settings() -> Any:
+    payload = request.get_json(silent=True) or {}
+    data, status = forward_json("/settings", payload, method="POST")
+    return make_response(data, status)
 
-    @app.post("/feedback")
-    def feedback():
-        # Keep this tiny; optionally forward/store later
-        data = request.get_json(silent=True) or {}
-        log.info(f"User feedback: {data}")
-        return jsonify({"status": "received"}), 200
+@app.get("/")
+def root() -> Any:
+    return jsonify({"service": "api", "status": "ok", "version": APP_VERSION}), 200
 
-    return app
-
-# Gunicorn entrypoint expects `app`
-app = create_app()
+# Gunicorn looks for `app`

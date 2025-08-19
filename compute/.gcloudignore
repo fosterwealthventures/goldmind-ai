@@ -1,25 +1,21 @@
-# VCS
-.git
-.gitignore
-
-# Python cache
+# Bytecode & caches
 __pycache__/
 *.pyc
 *.pyo
 
-# Local envs
+# Virtual envs
 venv/
 .venv/
-env/
 ENV/
+env/
 
 # Large / not needed at build time
 data/
 logs/
 lstm_models/
 engine/
-deploy/
 scripts/
-*.csv
-*.parquet
-*.xlsx
+deploy/
+
+# Node / misc (if any)
+node_modules/

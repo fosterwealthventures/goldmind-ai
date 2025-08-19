@@ -1,6 +1,4 @@
-# Lean API deps (tiny image, fast cold starts)
-Flask>=2.3
-gunicorn>=21.2
-flask-cors>=4.0
-requests>=2.31
-python-dotenv>=1.0
+Flask>=2.2,<4
+flask-cors>=4,<5
+gunicorn==21.2.0
+requests>=2.31,<3
