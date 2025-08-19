@@ -1,6 +1,5 @@
 .git
 .gitignore
-.vscode
 __pycache__/
 *.pyc
 *.log
@@ -10,4 +9,4 @@ venv
 logs
 dist
 build
-backups
+.vscode
