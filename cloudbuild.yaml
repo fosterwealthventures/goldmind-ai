@@ -7,7 +7,7 @@ substitutions:
   _SERVICE_COMPUTE: goldmind-compute
   _API_IMAGE: gcr.io/$PROJECT_ID/goldmind-api:$SHORT_SHA
   _COMPUTE_IMAGE: gcr.io/$PROJECT_ID/goldmind-compute:$SHORT_SHA
-  _INTERNAL_SECRET: change-me-please  # set via substitutions or Secret Manager
+  _INTERNAL_SECRET: change-me-please  # override via --substitutions
 
 steps:
 # Build & push API
@@ -35,19 +35,30 @@ steps:
       --allow-unauthenticated \
       --set-env-vars=APP_VERSION=$SHORT_SHA,ENV=prod,INTERNAL_SHARED_SECRET=$_INTERNAL_SECRET
 
-# Deploy API with COMPUTE_URL + CORS + same secret
+# Deploy API, wiring COMPUTE_URL via env-file to avoid $ substitution errors
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk
   entrypoint: bash
   args:
   - -lc
   - |
-    COMPUTE_URL=$(gcloud run services describe $_SERVICE_COMPUTE --region $_REGION --format='value(status.url)')
+    # Build a temp env file
+    ENVFILE=/workspace/api-envvars.txt
+    : > "$ENVFILE"
+    echo "APP_VERSION=$SHORT_SHA" >> "$ENVFILE"
+    echo "ENV=prod" >> "$ENVFILE"
+    echo "INTERNAL_SHARED_SECRET=$_INTERNAL_SECRET" >> "$ENVFILE"
+    echo "COMPUTE_URL=$(gcloud run services describe $_SERVICE_COMPUTE --region $_REGION --format='value(status.url)')" >> "$ENVFILE"
+
+    echo "Deploying API with envs:"
+    cat "$ENVFILE"
+
     gcloud run deploy $_SERVICE_API \
       --image $_API_IMAGE \
       --region $_REGION \
       --platform managed \
       --allow-unauthenticated \
-      --set-env-vars=APP_VERSION=$SHORT_SHA,ENV=prod,COMPUTE_URL=$COMPUTE_URL,INTERNAL_SHARED_SECRET=$_INTERNAL_SECRET,CORS_ALLOW_ORIGINS=https://fwvgoldmindai.com,https://www.fwvgoldmindai.com
+      --set-env-vars-file "$ENVFILE" \
+      --set-env-vars=CORS_ALLOW_ORIGINS=https://fwvgoldmindai.com,https://www.fwvgoldmindai.com
 
 images:
 - $_API_IMAGE
