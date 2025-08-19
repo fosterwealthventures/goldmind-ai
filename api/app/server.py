@@ -36,7 +36,7 @@ def predict() -> Any:
     data, status = forward_json("/predict", payload, method="POST")
     return make_response(data, status)
 
-# --- SETTINGS endpoints (fixed: GET now implemented) ---
+# --- SETTINGS endpoints (GET is REQUIRED to avoid 405) ---
 @app.get("/settings")
 def get_settings() -> Any:
     data, status = forward_json("/settings", None, method="GET")
@@ -52,4 +52,4 @@ def put_settings() -> Any:
 def root() -> Any:
     return jsonify({"service": "api", "status": "ok", "version": APP_VERSION}), 200
 
-# Gunicorn looks for `app`
+# Gunicorn will import `app`
