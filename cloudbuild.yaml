@@ -5,9 +5,6 @@ substitutions:
   _REGION: us-central1
   _SERVICE_API: goldmind-api
   _SERVICE_COMPUTE: goldmind-compute
-  _API_IMAGE: gcr.io/$PROJECT_ID/goldmind-api:$SHORT_SHA
-  _COMPUTE_IMAGE: gcr.io/$PROJECT_ID/goldmind-compute:$SHORT_SHA
-  _INTERNAL_SECRET: change-me-please  # override with --substitutions
 
 steps:
 # Build & push API
