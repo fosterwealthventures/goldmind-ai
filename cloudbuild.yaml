@@ -1,4 +1,5 @@
 # CI/CD: Build + Push + Deploy API & Compute (Cloud Run Gen2)
+# Includes structured-logging smoke tests for API & Compute.
 
 substitutions:
   _REGION: "us-central1"
@@ -72,12 +73,62 @@ steps:
       - --project=$PROJECT_ID
       - --quiet
 
-# Optional: add a simple smoke test after deploy (uncomment + adjust URL/headers)
-#  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-#    id: Smoke test
-#    entrypoint: bash
-#    args:
-#      - -lc
-#      - |
-#        set -euo pipefail
-#        curl -fsSL https://api.fwvgoldmindai.com/health
+  # --- Smoke Test: API (structured logs) ---
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: Smoke Test API Health
+    entrypoint: bash
+    args:
+      - -lc
+      - |
+        set -euo pipefail
+        URL="${_API_DOMAIN}/health"
+        TS="$(date -Iseconds)"
+        echo "Smoke testing API at $URL ..."
+        RESP="$(curl -sS -m 20 --retry 5 --retry-delay 5 -w ' HTTP_STATUS:%{http_code}' "$URL")"
+        STATUS="${RESP##*HTTP_STATUS:}"
+        BODY="${RESP% HTTP_STATUS:*}"
+        BODY_B64="$(printf '%s' "$BODY" | base64 | tr -d '\n')"
+
+        if [[ "$STATUS" == "200" ]]; then
+          gcloud logging write deploy-smoke \
+            "{\"service\":\"${_SERVICE_API}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":true,\"ts\":\"$TS\",\"body_b64\":\"$BODY_B64\"}" \
+            --payload-type=json --severity=INFO
+          echo "API health OK (200)."
+        else
+          gcloud logging write deploy-smoke \
+            "{\"service\":\"${_SERVICE_API}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":false,\"ts\":\"$TS\"}" \
+            --payload-type=json --severity=ERROR
+          echo "API health FAILED ($STATUS)."
+          exit 1
+        fi
+
+  # --- Smoke Test: Compute (structured logs) ---
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: Smoke Test Compute Health
+    entrypoint: bash
+    args:
+      - -lc
+      - |
+        set -euo pipefail
+        echo "Fetching Compute service URL..."
+        COMPUTE_URL="$(gcloud run services describe ${_SERVICE_COMPUTE} --region ${_REGION} --format 'value(status.url)')"
+        URL="${COMPUTE_URL}/health"
+        TS="$(date -Iseconds)"
+        echo "Smoke testing Compute at $URL ..."
+        RESP="$(curl -sS -m 20 --retry 5 --retry-delay 5 -w ' HTTP_STATUS:%{http_code}' "$URL")"
+        STATUS="${RESP##*HTTP_STATUS:}"
+        BODY="${RESP% HTTP_STATUS:*}"
+        BODY_B64="$(printf '%s' "$BODY" | base64 | tr -d '\n')"
+
+        if [[ "$STATUS" == "200" ]]; then
+          gcloud logging write deploy-smoke \
+            "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":true,\"ts\":\"$TS\",\"body_b64\":\"$BODY_B64\"}" \
+            --payload-type=json --severity=INFO
+          echo "Compute health OK (200)."
+        else
+          gcloud logging write deploy-smoke \
+            "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":false,\"ts\":\"$TS\"}" \
+            --payload-type=json --severity=ERROR
+          echo "Compute health FAILED ($STATUS)."
+          exit 1
+        fi
