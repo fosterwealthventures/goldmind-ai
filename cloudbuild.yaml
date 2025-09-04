@@ -1,5 +1,7 @@
 # CI/CD: Build + Push + Deploy API & Compute (Cloud Run Gen2)
-# Parallel smoke tests with 60s grace period + structured logging + final summary.
+# - Structured logging (deploy-smoke, deploy-summary)
+# - Parallel smoke tests (12 x 5s = 60s grace)
+# - Final step prints both service URLs
 
 substitutions:
   _REGION: "us-central1"
@@ -15,146 +17,163 @@ options:
   substitution_option: ALLOW_LOOSE
 
 steps:
-  # --- Build ---
-  - name: gcr.io/cloud-builders/docker
-    id: Build API image
+  # -------------------------
+  # Build
+  # -------------------------
+  - name: "gcr.io/cloud-builders/docker"
+    id: "Build API image"
     args:
-      - build
-      - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA
-      - -f
-      - ./api/Dockerfile
-      - ./api
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA"
+      - "-f"
+      - "./api/Dockerfile"
+      - "./api"
 
-  - name: gcr.io/cloud-builders/docker
-    id: Build Compute image
+  - name: "gcr.io/cloud-builders/docker"
+    id: "Build Compute image"
     args:
-      - build
-      - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA
-      - -f
-      - ./compute/Dockerfile
-      - ./compute
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA"
+      - "-f"
+      - "./compute/Dockerfile"
+      - "./compute"
 
-  # --- Push ---
-  - name: gcr.io/cloud-builders/docker
-    id: Push API image
-    args: [ "push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA" ]
-
-  - name: gcr.io/cloud-builders/docker
-    id: Push Compute image
-    args: [ "push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA" ]
-
-  # --- Deploy ---
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: Deploy API
-    entrypoint: gcloud
+  # -------------------------
+  # Push
+  # -------------------------
+  - name: "gcr.io/cloud-builders/docker"
+    id: "Push API image"
     args:
-      - run
-      - deploy
-      - ${_SERVICE_API}
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA
-      - --region=${_REGION}
-      - --platform=managed
-      - --allow-unauthenticated
-      - --project=$PROJECT_ID
-      - --quiet
+      - "push"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA"
 
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: Deploy Compute
-    entrypoint: gcloud
+  - name: "gcr.io/cloud-builders/docker"
+    id: "Push Compute image"
     args:
-      - run
-      - deploy
-      - ${_SERVICE_COMPUTE}
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA
-      - --region=${_REGION}
-      - --platform=managed
-      - --project=$PROJECT_ID
-      - --quiet
+      - "push"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA"
 
-  # --- Smoke Test: API (parallel) ---
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: Smoke Test API Health
+  # -------------------------
+  # Deploy
+  # -------------------------
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "Deploy API"
+    entrypoint: "gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE_API}"
+      - "--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--allow-unauthenticated"
+      - "--project=$PROJECT_ID"
+      - "--quiet"
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "Deploy Compute"
+    entrypoint: "gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE_COMPUTE}"
+      - "--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA"
+      - "--region=${_REGION}"
+      - "--platform=managed"
+      - "--project=$PROJECT_ID"
+      - "--quiet"
+
+  # -------------------------
+  # Smoke test: API (parallel)
+  # -------------------------
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "Smoke Test API Health"
     waitFor: ["Deploy API"]
-    entrypoint: bash
+    entrypoint: "bash"
     args:
-      - -lc
+      - "-lc"
       - |
         set -euo pipefail
-        URL="${_API_DOMAIN}/health"
-        TS="$(date -Iseconds)"
-        echo "Smoke testing API at $URL ..."
+        api_url="${_API_DOMAIN}/health"
+        ts="$(date -Iseconds)"
+        echo "Smoke testing API at ${api_url} ..."
         for i in {1..12}; do
-          RESP="$(curl -sS -m 10 -w ' HTTP_STATUS:%{http_code}' "$URL" || true)"
-          STATUS="${RESP##*HTTP_STATUS:}"
-          BODY="${RESP% HTTP_STATUS:*}"
-          BODY_B64="$(printf '%s' "$BODY" | base64 | tr -d '\n')"
-          if [[ "$STATUS" == "200" ]]; then
+          resp="$(curl -sS -m 10 -w ' HTTP_STATUS:%{http_code}' "${api_url}" || true)"
+          status="${resp##*HTTP_STATUS:}"
+          body="${resp% HTTP_STATUS:*}"
+          body_b64="$(printf '%s' "$body" | base64 | tr -d '\n')"
+          if [[ "$status" == "200" ]]; then
             gcloud logging write deploy-smoke \
-              "{\"service\":\"${_SERVICE_API}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":true,\"ts\":\"$TS\",\"body_b64\":\"$BODY_B64\"}" \
+              "{\"service\":\"${_SERVICE_API}\",\"url\":\"${api_url}\",\"status\":${status},\"ok\":true,\"ts\":\"${ts}\",\"body_b64\":\"${body_b64}\"}" \
               --payload-type=json --severity=INFO
             echo "API health OK (200)."
             exit 0
           fi
-          echo "Attempt $i/12: API not ready (status=$STATUS). Retrying in 5s..."
+          echo "Attempt ${i}/12: API not ready (status=${status}). Retrying in 5s..."
           sleep 5
         done
         gcloud logging write deploy-smoke \
-          "{\"service\":\"${_SERVICE_API}\",\"url\":\"$URL\",\"status\":\"fail\",\"ok\":false,\"ts\":\"$TS\"}" \
+          "{\"service\":\"${_SERVICE_API}\",\"url\":\"${api_url}\",\"status\":\"fail\",\"ok\":false,\"ts\":\"${ts}\"}" \
           --payload-type=json --severity=ERROR
         echo "API health FAILED after grace period."
         exit 1
 
-  # --- Smoke Test: Compute (parallel) ---
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: Smoke Test Compute Health
+  # -------------------------
+  # Smoke test: Compute (parallel)
+  # -------------------------
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "Smoke Test Compute Health"
     waitFor: ["Deploy Compute"]
-    entrypoint: bash
+    entrypoint: "bash"
     args:
-      - -lc
+      - "-lc"
       - |
         set -euo pipefail
-        # Avoid ${COMPUTE_URL} to prevent Cloud Build substitutions — use $COMPUTE_URL instead.
-        COMPUTE_URL="$(gcloud run services describe ${_SERVICE_COMPUTE} --region ${_REGION} --format 'value(status.url)')"
-        URL="$COMPUTE_URL/health"
-        TS="$(date -Iseconds)"
-        echo "Smoke testing Compute at $URL ..."
+        compute_url="$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format 'value(status.url)')"
+        health_url="${compute_url}/health"
+        ts="$(date -Iseconds)"
+        echo "Smoke testing Compute at ${health_url} ..."
         for i in {1..12}; do
-          RESP="$(curl -sS -m 10 -w ' HTTP_STATUS:%{http_code}' "$URL" || true)"
-          STATUS="${RESP##*HTTP_STATUS:}"
-          BODY="${RESP% HTTP_STATUS:*}"
-          BODY_B64="$(printf '%s' "$BODY" | base64 | tr -d '\n')"
-          if [[ "$STATUS" == "200" ]]; then
+          resp="$(curl -sS -m 10 -w ' HTTP_STATUS:%{http_code}' "${health_url}" || true)"
+          status="${resp##*HTTP_STATUS:}"
+          body="${resp% HTTP_STATUS:*}"
+          body_b64="$(printf '%s' "$body" | base64 | tr -d '\n')"
+          if [[ "$status" == "200" ]]; then
             gcloud logging write deploy-smoke \
-              "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":true,\"ts\":\"$TS\",\"body_b64\":\"$BODY_B64\"}" \
+              "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"${health_url}\",\"status\":${status},\"ok\":true,\"ts\":\"${ts}\",\"body_b64\":\"${body_b64}\"}" \
               --payload-type=json --severity=INFO
             echo "Compute health OK (200)."
             exit 0
           fi
-          echo "Attempt $i/12: Compute not ready (status=$STATUS). Retrying in 5s..."
+          echo "Attempt ${i}/12: Compute not ready (status=${status}). Retrying in 5s..."
           sleep 5
         done
         gcloud logging write deploy-smoke \
-          "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"$URL\",\"status\":\"fail\",\"ok\":false,\"ts\":\"$TS\"}" \
+          "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"${health_url}\",\"status\":\"fail\",\"ok\":false,\"ts\":\"${ts}\"}" \
           --payload-type=json --severity=ERROR
         echo "Compute health FAILED after grace period."
         exit 1
 
-  # --- Final summary (runs after both smoke tests) ---
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: Summary: Print Service URLs
-    waitFor: ["Smoke Test API Health", "Smoke Test Compute Health"]
-    entrypoint: bash
+  # -------------------------
+  # Final summary
+  # -------------------------
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: "Summary: Print Service URLs"
+    waitFor:
+      - "Smoke Test API Health"
+      - "Smoke Test Compute Health"
+    entrypoint: "bash"
     args:
-      - -lc
+      - "-lc"
       - |
         set -euo pipefail
-        API_URL="$(gcloud run services describe ${_SERVICE_API} --region ${_REGION} --format 'value(status.url)')"
-        COMPUTE_URL="$(gcloud run services describe ${_SERVICE_COMPUTE} --region ${_REGION} --format 'value(status.url)')"
+        api_url="$(gcloud run services describe "${_SERVICE_API}" --region "${_REGION}" --format 'value(status.url)')"
+        compute_url="$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format 'value(status.url)')"
         echo "=== Deployment Summary ==="
-        echo "API URL:      $API_URL"
-        echo "Compute URL:  $COMPUTE_URL"
+        echo "API URL:     ${api_url}"
+        echo "Compute URL: ${compute_url}"
         gcloud logging write deploy-summary \
-          "{\"api\":\"$API_URL\",\"compute\":\"$COMPUTE_URL\",\"env\":\"${_ENV}\",\"ts\":\"$(date -Iseconds)\"}" \
+          "{\"api\":\"${api_url}\",\"compute\":\"${compute_url}\",\"env\":\"${_ENV}\",\"ts\":\"$(date -Iseconds)\"}" \
           --payload-type=json --severity=INFO
