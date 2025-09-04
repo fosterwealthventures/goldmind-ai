@@ -1,5 +1,4 @@
 # Cloud Build: build + push + deploy API & Compute (Gen2)
-# Place at repo root: /cloudbuild.yaml
 
 substitutions:
   _REGION: "us-central1"
@@ -9,7 +8,6 @@ substitutions:
   _API_DOMAIN: "https://api.fwvgoldmindai.com"
   _ENV: "prod"
   _USE_YFINANCE: "true"
-  # Optional runtime service accounts (leave blank to skip)
   _RUNTIME_SA_API: ""
   _RUNTIME_SA_COMPUTE: ""
 
@@ -17,26 +15,24 @@ options:
   logging: CLOUD_LOGGING_ONLY
   substitution_option: ALLOW_LOOSE
 
-# ------------------------------------------------------------
-# Build & push both images (API from repo root, Compute from ./compute)
-# ------------------------------------------------------------
 steps:
-- name: gcr.io/google.com/cloudsdktool/cloud-sdk
-  id: "DEBUG: print substitutions"
-  args:
-    - bash
-    - -c
-    - |
-      set -euo pipefail
-      echo "_REGION=${_REGION}"
-      echo "_AR_REPO=${_AR_REPO}"
-      echo "_SERVICE_API=${_SERVICE_API}"
-      echo "_SERVICE_COMPUTE=${_SERVICE_COMPUTE}"
-      echo "_API_DOMAIN=${_API_DOMAIN}"
-      echo "_ENV=${_ENV}"
-      echo "_USE_YFINANCE=${_USE_YFINANCE}"
+  # ---- DEBUG: print substitutions (safe YAML) ----
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: "DEBUG: print substitutions"
+    args:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        echo "_REGION=${_REGION}"
+        echo "_AR_REPO=${_AR_REPO}"
+        echo "_SERVICE_API=${_SERVICE_API}"
+        echo "_SERVICE_COMPUTE=${_SERVICE_COMPUTE}"
+        echo "_API_DOMAIN=${_API_DOMAIN}"
+        echo "_ENV=${_ENV}"
+        echo "_USE_YFINANCE=${_USE_YFINANCE}"
 
-  - name: gcr.io/cloud-builders/docker
+   - name: gcr.io/cloud-builders/docker
     id: "Build API image"
     args:
       - build
