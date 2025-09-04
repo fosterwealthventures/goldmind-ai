@@ -1,5 +1,5 @@
 # CI/CD: Build + Push + Deploy API & Compute (Cloud Run Gen2)
-# Includes structured-logging smoke tests for API & Compute.
+# Includes structured-logging smoke tests with grace-period retries, run in parallel.
 
 substitutions:
   _REGION: "us-central1"
@@ -73,9 +73,10 @@ steps:
       - --project=$PROJECT_ID
       - --quiet
 
-  # --- Smoke Test: API (structured logs) ---
+  # --- Smoke Test: API with Grace Period (runs in parallel with Compute test) ---
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     id: Smoke Test API Health
+    waitFor: ["Deploy API"]     # ← parallelize
     entrypoint: bash
     args:
       - -lc
@@ -84,51 +85,59 @@ steps:
         URL="${_API_DOMAIN}/health"
         TS="$(date -Iseconds)"
         echo "Smoke testing API at $URL ..."
-        RESP="$(curl -sS -m 20 --retry 5 --retry-delay 5 -w ' HTTP_STATUS:%{http_code}' "$URL")"
-        STATUS="${RESP##*HTTP_STATUS:}"
-        BODY="${RESP% HTTP_STATUS:*}"
-        BODY_B64="$(printf '%s' "$BODY" | base64 | tr -d '\n')"
+        for i in {1..12}; do
+          RESP="$(curl -sS -m 10 -w ' HTTP_STATUS:%{http_code}' "$URL" || true)"
+          STATUS="${RESP##*HTTP_STATUS:}"
+          BODY="${RESP% HTTP_STATUS:*}"
+          BODY_B64="$(printf '%s' "$BODY" | base64 | tr -d '\n')"
 
-        if [[ "$STATUS" == "200" ]]; then
-          gcloud logging write deploy-smoke \
-            "{\"service\":\"${_SERVICE_API}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":true,\"ts\":\"$TS\",\"body_b64\":\"$BODY_B64\"}" \
-            --payload-type=json --severity=INFO
-          echo "API health OK (200)."
-        else
-          gcloud logging write deploy-smoke \
-            "{\"service\":\"${_SERVICE_API}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":false,\"ts\":\"$TS\"}" \
-            --payload-type=json --severity=ERROR
-          echo "API health FAILED ($STATUS)."
-          exit 1
-        fi
+          if [[ "$STATUS" == "200" ]]; then
+            gcloud logging write deploy-smoke \
+              "{\"service\":\"${_SERVICE_API}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":true,\"ts\":\"$TS\",\"body_b64\":\"$BODY_B64\"}" \
+              --payload-type=json --severity=INFO
+            echo "API health OK (200)."
+            exit 0
+          fi
+          echo "Attempt $i/12: API not ready (status=$STATUS). Retrying in 5s..."
+          sleep 5
+        done
+        gcloud logging write deploy-smoke \
+          "{\"service\":\"${_SERVICE_API}\",\"url\":\"$URL\",\"status\":\"fail\",\"ok\":false,\"ts\":\"$TS\"}" \
+          --payload-type=json --severity=ERROR
+        echo "API health FAILED after grace period."
+        exit 1
 
-  # --- Smoke Test: Compute (structured logs) ---
+  # --- Smoke Test: Compute with Grace Period (runs in parallel with API test) ---
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     id: Smoke Test Compute Health
+    waitFor: ["Deploy Compute"] # ← parallelize
     entrypoint: bash
     args:
       - -lc
       - |
         set -euo pipefail
-        echo "Fetching Compute service URL..."
         COMPUTE_URL="$(gcloud run services describe ${_SERVICE_COMPUTE} --region ${_REGION} --format 'value(status.url)')"
         URL="${COMPUTE_URL}/health"
         TS="$(date -Iseconds)"
         echo "Smoke testing Compute at $URL ..."
-        RESP="$(curl -sS -m 20 --retry 5 --retry-delay 5 -w ' HTTP_STATUS:%{http_code}' "$URL")"
-        STATUS="${RESP##*HTTP_STATUS:}"
-        BODY="${RESP% HTTP_STATUS:*}"
-        BODY_B64="$(printf '%s' "$BODY" | base64 | tr -d '\n')"
+        for i in {1..12}; do
+          RESP="$(curl -sS -m 10 -w ' HTTP_STATUS:%{http_code}' "$URL" || true)"
+          STATUS="${RESP##*HTTP_STATUS:}"
+          BODY="${RESP% HTTP_STATUS:*}"
+          BODY_B64="$(printf '%s' "$BODY" | base64 | tr -d '\n')"
 
-        if [[ "$STATUS" == "200" ]]; then
-          gcloud logging write deploy-smoke \
-            "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":true,\"ts\":\"$TS\",\"body_b64\":\"$BODY_B64\"}" \
-            --payload-type=json --severity=INFO
-          echo "Compute health OK (200)."
-        else
-          gcloud logging write deploy-smoke \
-            "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":false,\"ts\":\"$TS\"}" \
-            --payload-type=json --severity=ERROR
-          echo "Compute health FAILED ($STATUS)."
-          exit 1
-        fi
+          if [[ "$STATUS" == "200" ]]; then
+            gcloud logging write deploy-smoke \
+              "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"$URL\",\"status\":$STATUS,\"ok\":true,\"ts\":\"$TS\",\"body_b64\":\"$BODY_B64\"}" \
+              --payload-type=json --severity=INFO
+            echo "Compute health OK (200)."
+            exit 0
+          fi
+          echo "Attempt $i/12: Compute not ready (status=$STATUS). Retrying in 5s..."
+          sleep 5
+        done
+        gcloud logging write deploy-smoke \
+          "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"$URL\",\"status\":\"fail\",\"ok\":false,\"ts\":\"$TS\"}" \
+          --payload-type=json --severity=ERROR
+        echo "Compute health FAILED after grace period."
+        exit 1
