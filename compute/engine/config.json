@@ -1,0 +1,199 @@
+{
+  "app_name": "GoldMIND AI",
+  "env": "development",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "debug": false,
+    "cors_origins": [
+      "http://localhost:5173",
+      "http://localhost:3000"
+    ],
+    "force_https": false,
+    "request_timeout_sec": 30
+  },
+  "database": {
+    "path": "./data/goldmind_ai.db",
+    "echo": false,
+    "pool_size": 5,
+    "backup_interval": 3600,
+    "create_samples": false
+  },
+  "redis": {
+    "enabled": false,
+    "host": "localhost",
+    "port": 6379,
+    "db": 0,
+    "password": null
+  },
+  "market_data": {
+    "update_interval": 30,
+    "providers": [
+      "alpha_vantage",
+      "twelve_data",
+      "fred"
+    ],
+    "alpha_vantage_key": "${ALPHA_VANTAGE_API_KEY}",
+    "twelve_data_key": "${TWELVEDATA_API_KEY}",
+    "fred_key": "${FRED_API_KEY}",
+    "demo_mode": true,
+    "provider": "auto",
+    "max_history_size": 5000,
+    "retry_attempts": 5,
+    "retry_delay": 10,
+    "gold_ohlcv_symbol": "XAU/USD",
+    "yfinance_symbol": "GC=F"
+  },
+  "ml_models": {
+    "analytical_pathway": {
+      "enabled": true
+    },
+    "lstm_temporal": {
+      "enabled": true,
+      "window": 60,
+      "epochs": 10,
+      "sequence_length": 60,
+      "lstm_units": 64,
+      "dropout_rate": 0.2,
+      "learning_rate": 0.001,
+      "batch_size": 32,
+      "training": {
+        "enabled": true,
+        "epochs": 50,
+        "save_dir": "./models",
+        "filename_format": "production_goldmind_{date}.h5",
+        "save_interval_epochs": 5
+      },
+      "lookback_days": 100,
+      "model_path": "",
+      "model_sha256": ""
+    },
+    "retrain_interval": 86400,
+    "confidence_threshold": 0.6,
+    "auto_update": true,
+    "gpu_enabled": false,
+    "example_input": "What is the outlook for gold today?",
+    "example_user_id": 123
+  },
+  "analytics": {
+    "enabled": true,
+    "enable_realtime": true,
+    "retention_days": 90,
+    "update_interval": 3600,
+    "cache_timeout": 300,
+    "sample_rate": 1.0
+  },
+  "security": {
+    "enable_audit_log": true,
+    "session_timeout": 7200,
+    "max_login_attempts": 5,
+    "block_duration_minutes": 15,
+    "jwt_hours": 24,
+    "force_https": false
+  },
+  "auto_hedging": {
+    "enabled": true,
+    "risk_trigger": 7.0,
+    "max_exposure": 0.15,
+    "cost_limit": 50,
+    "auto_execute": false,
+    "monitoring_interval": 300,
+    "circuit_breaker": 9.5,
+    "max_hedge_duration": 45
+  },
+  "model_performance": {
+    "enabled": true,
+    "accuracy_threshold": 0.75,
+    "response_time_threshold_ms": 1000,
+    "error_rate_threshold": 0.05,
+    "drift_threshold": 0.3,
+    "resource_threshold": 80,
+    "throughput_threshold": 5,
+    "auto_fallback": true,
+    "fallback_threshold": 0.6,
+    "fallback_delay_minutes": 5,
+    "recovery_threshold": 0.8,
+    "max_fallback_duration_min": 1440,
+    "strategy": "gradual",
+    "canary_percentage": 10,
+    "monitoring_interval": 300
+  },
+  "dual_system": {
+    "default_weights": {
+      "ANALYTICAL": 0.5,
+      "LSTM_TEMPORAL": 0.5
+    },
+    "bias_threshold": 0.7,
+    "consensus_threshold": 0.8,
+    "uncertainty_penalty": 0.15,
+    "bias_penalty_factor": 0.2,
+    "bias_detection_enabled": true,
+    "bias_report_threshold": 60,
+    "conflict_strategy": "confidence_based"
+  },
+  "ultimate_manager": {
+    "regime_adaptation_enabled": true,
+    "personalization_enabled": true,
+    "adaptive_learning_enabled": true
+  },
+  "dashboard": {
+    "refresh": {
+      "cards_sec": 10,
+      "charts_sec": 30,
+      "system_sec": 20
+    },
+    "features": {
+      "system_cards": true,
+      "regime_cards": true,
+      "hedging_cards": true,
+      "bias_cards": true
+    }
+  },
+  "notifications": {
+    "default_channel": "console",
+    "email": {
+      "from": "alerts@goldmind.ai",
+      "smtp_host": "smtp.yourprovider.com",
+      "smtp_port": 587,
+      "username": "you@example.com",
+      "password": "replace-with-password"
+    },
+    "webhook": {
+      "url": ""
+    },
+    "twilio": {
+      "sid": "",
+      "token": "",
+      "from": ""
+    },
+    "rate_limit_per_min": 30
+  },
+  "system_utilities": {
+    "disk_free_gb_warning": 5.0,
+    "disk_free_gb_error": 1.0,
+    "log_max_mb": 100.0,
+    "backup_zip": true,
+    "backup_dir": "backups",
+    "log_dir": "logs"
+  },
+  "adaptive_learning": {
+    "ema_decay": 0.9,
+    "min_weight": 0.15,
+    "max_weight": 0.85,
+    "reward_scale": 1.0
+  },
+  "regime_detector": {
+    "short_window": 20,
+    "medium_window": 50,
+    "long_window": 120,
+    "vol_window": 14,
+    "trend_threshold": 0.04,
+    "bearish_threshold": -0.04,
+    "vol_threshold": 0.03
+  },
+  "goldmind_api": {
+    "base_url": "https://api.fwvgoldmindai.com",
+    "api_key": "${GOLDMIND_API_KEY}",
+    "timeout_sec": 30
+  }
+}

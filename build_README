@@ -1,0 +1,50 @@
+
+# Cloud Build Quickstart for GoldMIND API
+
+## One-time setup
+export PROJECT_ID=$(gcloud config get-value project)
+export REGION=us-central1
+export SERVICE=goldmind-api
+export REPO=goldmind
+
+# Create Artifact Registry (once)
+gcloud artifacts repositories create ${REPO} --repository-format=docker --location=${REGION}
+
+# IAM for Cloud Build
+export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com --role=roles/run.admin
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com --role=roles/iam.serviceAccountUser
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com --role=roles/artifactregistry.writer
+
+# Cloud Run runtime SA read access to Artifact Registry (adjust [default/default] to your service account if different)
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$PROJECT_ID.svc.id.goog[default/default] --role=roles/artifactregistry.reader
+
+# Optional: create secrets in Secret Manager (recommended)
+gcloud secrets create twdata --replication-policy=automatic || true
+gcloud secrets versions add twdata --data-file=- <<< "YOUR_TWELVE_DATA_API_KEY"
+gcloud secrets create alphavantage --replication-policy=automatic || true
+gcloud secrets versions add alphavantage --data-file=- <<< "YOUR_ALPHA_VANTAGE_API_KEY"
+gcloud secrets create fred --replication-policy=automatic || true
+gcloud secrets versions add fred --data-file=- <<< "YOUR_FRED_API_KEY"
+gcloud secrets create metalprice --replication-policy=automatic || true
+gcloud secrets versions add metalprice --data-file=- <<< "YOUR_METALPRICE_API_KEY"
+gcloud secrets create goldpricez --replication-policy=automatic || true
+gcloud secrets versions add goldpricez --data-file=- <<< "YOUR_GOLDPRICEZ_API_KEY"
+gcloud secrets create internal_shared_secret --replication-policy=automatic || true
+gcloud secrets versions add internal_shared_secret --data-file=- <<< "$(python - <<'PY'
+import secrets; print(secrets.token_urlsafe(48))
+PY
+)"
+
+## Build & Deploy (from repo root)
+gcloud builds submit --config cloudbuild.yaml   --substitutions=_REGION=${REGION},_SERVICE=${SERVICE},_REPO=${REPO},_COMPUTE_URL="https://goldmind-compute-xxxxx-uc.a.run.app"
+
+## Verify
+SVC_URL=$(gcloud run services describe ${SERVICE} --region ${REGION} --format='value(status.url)')
+curl -s $SVC_URL/health | jq .
+curl -s $SVC_URL/api/insights/midlayer | jq .
+curl -s $SVC_URL/insight/midlayer | jq .   # legacy
+
+## Roll back (pick a previous revision)
+gcloud run services list-revisions --region ${REGION} --service ${SERVICE}
+gcloud run services update-traffic ${SERVICE} --region ${REGION} --to-revisions REVISION_NAME=100

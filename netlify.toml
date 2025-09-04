@@ -1,0 +1,48 @@
+# netlify.toml  (repo root)
+
+[build]
+  base    = "frontend/web"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+############################################
+# 1) Force HTTP -> HTTPS for everything
+############################################
+[[redirects]]
+  from   = "http://*"
+  to     = "https://:splat"
+  status = 301
+  force  = true
+
+############################################
+# 2) API proxy  (/api/* -> Cloud Run API)
+############################################
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://api.fwvgoldmindai.com/:splat"
+  status = 200
+  force  = true
+
+############################################
+# 3) SPA fallback (Vite/React)
+############################################
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+############################################
+# 4) Security headers (optional but recommended)
+############################################
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    # Relax CSP if you add third-party scripts, fonts, etc.
+    Content-Security-Policy = "default-src 'self' https: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data:; connect-src 'self' https://api.fwvgoldmindai.com; frame-ancestors 'none';"

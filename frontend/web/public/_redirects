@@ -1,0 +1,3 @@
+/api/*      https://api.fwvgoldmindai.com/:splat      200
+/compute/*  https://goldmind-compute-<YOUR_HASH>.us-central1.run.app/:splat  200
+/*          /index.html                               200

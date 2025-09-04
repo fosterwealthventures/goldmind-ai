@@ -1,0 +1,33 @@
+# --- web stack ---
+Flask==3.0.3
+gunicorn==21.2.0
+flask-cors==4.0.0
+Werkzeug==3.0.3
+requests==2.32.3
+
+# --- data / math ---
+numpy==1.26.4
+pandas==2.2.2
+
+# --- ML / inference (TensorFlow 2.15 CPU line) ---
+tensorflow-cpu==2.15.1
+keras==2.15.0
+tensorflow-estimator==2.15.0
+tensorboard==2.15.1
+
+# Companion pins compatible with TF 2.15 on Python 3.10
+absl-py==2.1.0
+gast==0.5.4
+grpcio==1.62.2
+h5py==3.10.0
+opt-einsum==3.3.0
+protobuf==4.23.4
+wrapt==1.14.1
+typing_extensions==4.12.2
+
+# --- sklearn stack ---
+scikit-learn==1.5.1
+joblib==1.4.2
+
+# --- optional finance data source ---
+yfinance==0.2.65

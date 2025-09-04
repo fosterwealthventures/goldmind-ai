@@ -1,0 +1,79 @@
+# cloudbuild.yaml — build → push → deploy (with explicit runtime SA) → smoke-test
+
+substitutions:
+  _REGION: us-central1
+  _SERVICE: goldmind-api
+  _REPO: goldmind
+  _PORT: "8000"
+  _MIN_INSTANCES: "1"
+  _MAX_INSTANCES: "5"
+  _CONCURRENCY: "80"
+  _TIMEOUT: "900"
+  _USE_YFINANCE: "true"
+  _ENV: "prod"
+  _API_DOMAIN: "https://api.fwvgoldmindai.com"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$BUILD_ID"
+
+steps:
+  # 1) Build the image from api/Dockerfile with api/ as context
+  - name: "gcr.io/cloud-builders/docker"
+    id: "Build image"
+    args:
+      - build
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$BUILD_ID"
+      - "-f"
+      - "api/Dockerfile"
+      - "api"
+
+  # 2) Push the image
+  - name: "gcr.io/cloud-builders/docker"
+    id: "Push image"
+    args:
+      - push
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$BUILD_ID"
+
+  # 3) Deploy to Cloud Run (EXPLICIT service account)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:latest"
+    id: "Deploy to Cloud Run"
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        gcloud run deploy "$_SERVICE" \
+          --image "${_REGION}-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$BUILD_ID" \
+          --region "$_REGION" \
+          --platform managed \
+          --service-account "goldmind-api-runner@$PROJECT_ID.iam.gserviceaccount.com" \
+          --allow-unauthenticated \
+          --port "$_PORT" \
+          --memory "1Gi" \
+          --cpu "1" \
+          --concurrency "$_CONCURRENCY" \
+          --min-instances "$_MIN_INSTANCES" \
+          --max-instances "$_MAX_INSTANCES" \
+          --timeout "$_TIMEOUT" \
+          --set-env-vars "ENV=$_ENV,USE_YFINANCE=$_USE_YFINANCE" \
+          --set-secrets "ALPHA_VANTAGE_API_KEY=ALPHA_VANTAGE_API_KEY:latest,TWELVE_DATA_API_KEY=TWELVE_DATA_API_KEY:latest,FRED_API_KEY=FRED_API_KEY:latest,METALPRICE_API_KEY=METALPRICE_API_KEY:latest,GOLDPRICEZ_API_KEY=GOLDPRICEZ_API_KEY:latest,INTERNAL_SHARED_SECRET=INTERNAL_SHARED_SECRET:latest"
+
+  # 4) Smoke test your custom domain
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:latest"
+    id: "Smoke test /health"
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        echo "Hitting $_API_DOMAIN/health ..."
+        code=$(curl -s -o /dev/null -w "%{http_code}" "$_API_DOMAIN/health" || true)
+        if [ "$code" != "200" ]; then
+          echo "Health check failed with HTTP $code"
+          exit 1
+        fi
+        echo "Health OK (200)"
