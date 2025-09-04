@@ -16,12 +16,11 @@ options:
   substitution_option: ALLOW_LOOSE
 
 steps:
-  # ---- DEBUG: print substitutions (safe YAML) ----
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     id: "DEBUG: print substitutions"
+    entrypoint: bash
     args:
-      - bash
-      - -lc
+      - -c
       - |
         set -euo pipefail
         echo "_REGION=${_REGION}"
@@ -32,15 +31,13 @@ steps:
         echo "_ENV=${_ENV}"
         echo "_USE_YFINANCE=${_USE_YFINANCE}"
 
-   - name: gcr.io/cloud-builders/docker
+  - name: gcr.io/cloud-builders/docker
     id: "Build API image"
     args:
       - build
-      - "-t"
-      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$SHORT_SHA"
-      - "-t"
-      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:latest"
-      - "."
+      - -t
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA"
+      - ./api
 
   - name: gcr.io/cloud-builders/docker
     id: "Build Compute image"
