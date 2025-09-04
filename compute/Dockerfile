@@ -10,18 +10,25 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates apt-utils build-essential \
+# System deps (add others only if you truly need them)
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
   && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip setuptools wheel build pip-tools
+# ---- Python deps ----
+# Use whichever file you maintain in compute/: requirements.txt (or requirements.in)
+COPY requirements.txt ./
+# If you use requirements.in instead, swap the two lines:
+# COPY requirements.in ./requirements.in
+# RUN python -m pip install --upgrade pip setuptools wheel && pip install --no-cache-dir -r requirements.in
+RUN python -m pip install --upgrade pip setuptools wheel \
+ && pip install --no-cache-dir -r requirements.txt \
+ && pip install --no-cache-dir gunicorn
 
-COPY requirements.in /tmp/requirements.in
-RUN pip-compile -q /tmp/requirements.in -o /tmp/requirements.txt
-RUN python -m pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
-RUN mkdir -p /app/requirements && cp /tmp/requirements.txt /app/requirements/requirements.txt
+# ---- App code ----
+COPY . /app
 
-COPY app/ /app
-
-CMD exec gunicorn -k gthread --workers 2 --threads 8 --timeout 120 \
-  --bind :${PORT:-8080} --chdir /app server:app
+# Cloud Run will provide $PORT
+ENV PORT=8080
+# Our app lives in compute/app/server.py with "app = create_app()"
+# --chdir app puts us inside compute/app so module is just "server:app"
+CMD exec gunicorn --bind :${PORT} --workers 2 --threads 8 --timeout 120 --chdir app server:app
