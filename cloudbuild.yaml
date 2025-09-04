@@ -1,18 +1,28 @@
-# cloudbuild.yaml – build + push + deploy API and Compute (identical settings)
+# cloudbuild.yaml — build + push + deploy API and Compute (identical settings)
 
 substitutions:
   _REGION: us-central1
   _REPO: goldmind
+
+  # Cloud Run service names
   _API_SERVICE: goldmind-api
   _COMPUTE_SERVICE: goldmind-compute
+
+  # Runtime settings (identical for both services for now)
   _PORT: "8000"
   _MIN_INSTANCES: "1"
   _MAX_INSTANCES: "5"
   _CONCURRENCY: "80"
   _TIMEOUT: "900"
-  _USE_YFINANCE: "true"
+
+  # App env
   _ENV: "prod"
+  _USE_YFINANCE: "true"
   _API_DOMAIN: "https://api.fwvgoldmindai.com"
+
+  # Shared secret used by API -> Compute internal calls
+  # (Consider moving to Secret Manager later.)
+  _INTERNAL_SHARED_SECRET: "REPLACE_ME_WITH_A_STRONG_SECRET"
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -22,14 +32,15 @@ images:
   - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_COMPUTE_SERVICE}:$BUILD_ID"
 
 steps:
-  # Authenticate Docker to Artifact Registry
+  # Authenticate Docker to Artifact Registry in this region
   - name: gcr.io/cloud-builders/gcloud
-    id: "Auth docker"
+    id: Auth docker
     args: ["auth", "configure-docker", "${_REGION}-docker.pkg.dev"]
 
-  # --- Build & Push API ---
+  # ============= API =============
+
   - name: gcr.io/cloud-builders/docker
-    id: "Build API"
+    id: Build API
     args:
       [
         "build",
@@ -39,56 +50,32 @@ steps:
       ]
 
   - name: gcr.io/cloud-builders/docker
-    id: "Push API"
+    id: Push API
     args:
       ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_API_SERVICE}:$BUILD_ID"]
 
   - name: gcr.io/cloud-builders/gcloud
-    id: "Deploy API"
+    id: Deploy API
     args:
       [
-        "run", "deploy", "${_API_SERVICE}",
-        "--image", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_API_SERVICE}:$BUILD_ID",
-        "--region", "${_REGION}",
-        "--platform", "managed",
+        "run","deploy","${_API_SERVICE}",
+        "--image","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_API_SERVICE}:$BUILD_ID",
+        "--region","${_REGION}",
+        "--platform","managed",
         "--allow-unauthenticated",
-        "--port", "${_PORT}",
-        "--min-instances", "${_MIN_INSTANCES}",
-        "--max-instances", "${_MAX_INSTANCES}",
-        "--concurrency", "${_CONCURRENCY}",
-        "--timeout", "${_TIMEOUT}",
-        "--set-env-vars", "ENV=${_ENV},USE_YFINANCE=${_USE_YFINANCE},API_DOMAIN=${_API_DOMAIN}"
+        "--port","${_PORT}",
+        "--min-instances","${_MIN_INSTANCES}",
+        "--max-instances","${_MAX_INSTANCES}",
+        "--concurrency","${_CONCURRENCY}",
+        "--timeout","${_TIMEOUT}",
+        "--set-env-vars","ENV=${_ENV},USE_YFINANCE=${_USE_YFINANCE},API_DOMAIN=${_API_DOMAIN},INTERNAL_SHARED_SECRET=${_INTERNAL_SHARED_SECRET}"
       ]
 
-  # --- Build & Push Compute ---
+  # ============= Compute =============
+
   - name: gcr.io/cloud-builders/docker
-    id: "Build Compute"
+    id: Build Compute
     args:
       [
         "build",
-        "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_COMPUTE_SERVICE}:$BUILD_ID",
-        "-f", "compute/Dockerfile",
-        "compute"
-      ]
-
-  - name: gcr.io/cloud-builders/docker
-    id: "Push Compute"
-    args:
-      ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_COMPUTE_SERVICE}:$BUILD_ID"]
-
-  - name: gcr.io/cloud-builders/gcloud
-    id: "Deploy Compute"
-    args:
-      [
-        "run", "deploy", "${_COMPUTE_SERVICE}",
-        "--image", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_COMPUTE_SERVICE}:$BUILD_ID",
-        "--region", "${_REGION}",
-        "--platform", "managed",
-        "--allow-unauthenticated",
-        "--port", "${_PORT}",
-        "--min-instances", "${_MIN_INSTANCES}",
-        "--max-instances", "${_MAX_INSTANCES}",
-        "--concurrency", "${_CONCURRENCY}",
-        "--timeout", "${_TIMEOUT}",
-        "--set-env-vars", "ENV=${_ENV},USE_YFINANCE=${_USE_YFINANCE}"
-      ]
+        "-t", "${_REGION}-docker.pkg.dev/$PROJECT_
