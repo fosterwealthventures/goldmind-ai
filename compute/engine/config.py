@@ -1,203 +1,279 @@
 """
-config.py
+config.py — GoldMIND AI unified configuration (updated for new dashboard)
+-------------------------------------------------------------------------
+Load order (lowest → highest precedence):
+1) Built-in DEFAULTS
+2) config.json (if present)
+3) .env (KEYS with __ map to nested dicts, e.g., GOLDMIND__SERVER__PORT=8080)
+4) Environment variables (same nested mapping)
+5) Runtime overrides (passed to Config(..., overrides=...))
 
-GoldMIND AI System Configuration
+Key additions in this update:
+- "dashboard" section: refresh intervals and feature flags
+- "notifications" section: default transports/channels
+- "system_utilities" section: health thresholds and backup policy
+- "adaptive_learning" + "regime_detector": new knobs to match added modules
+- Safer type coercion and helpers: get(), set(), save(), as_dict()
 
-This file defines the default configuration settings for the GoldMIND AI system.
-These settings can be overridden by a local 'config.json' file and by environment
-variables in a '.env' file using '__' as a nested-key separator.
+Usage:
+    cfg = Config()
+    port = cfg.get("server.port")
+    cfg.set("dashboard.features.system_cards", True)
+    cfg.save("config.runtime.json")
 """
 
-import os
+from __future__ import annotations
+
 import json
-import logging
-from pathlib import Path
+import os
+import pathlib
+from typing import Any, Dict, Optional
 
-from dotenv import load_dotenv
+# ---------------- Defaults ----------------
 
-logger = logging.getLogger(__name__)
+DEFAULTS: Dict[str, Any] = {
+    "app_name": "GoldMIND AI",
+    "env": "development",  # development|staging|production
+    "server": {
+        "host": "0.0.0.0",
+        "port": 5000,
+        "debug": True,
+        "cors_origins": ["http://localhost:5173", "http://localhost:3000"],
+        "force_https": False,
+        "request_timeout_sec": 30,
+    },
+    "database": {
+        "path": "goldmind_ai.db",
+        "echo": False,
+        "pool_size": 5,
+    },
+    "redis": {
+        "enabled": False,
+        "host": "localhost",
+        "port": 6379,
+        "db": 0,
+        "password": None,
+    },
+    "market_data": {
+        "update_interval": 30,
+        "providers": ["alpha_vantage", "twelve_data", "fred"],
+        "alpha_vantage_key": "",
+        "twelve_data_key": "",
+        "fred_key": "",
+        "demo_mode": True,
+    },
+    "ml_models": {
+        "lstm_temporal": {"enabled": True, "window": 60, "epochs": 10},
+        "analytical_pathway": {"enabled": True},
+    },
+    "analytics": {
+        "enabled": True,
+        "sample_rate": 1.0,
+    },
+    "security": {
+        "jwt_hours": 24,
+        "max_login_attempts": 5,
+        "block_duration_minutes": 15,
+        "force_https": False,
+    },
+    "auto_hedging": {
+        "enabled": True,
+        "risk_trigger": 7.0,
+        "circuit_breaker": 9.5,
+        "monitoring_interval": 300,
+        "auto_execute": False,
+    },
+    "model_performance": {
+        "enabled": True,
+        "eval_interval_min": 15,
+    },
+    "dual_system": {
+        "default_weights": {"ANALYTICAL": 0.5, "LSTM_TEMPORAL": 0.5},
+    },
+    "goldmind_api": {
+        "base_url": "https://api.goldmind.ai/v1",
+        "api_key": "",
+        "timeout_sec": 30,
+    },
+    # NEW: dashboard knobs
+    "dashboard": {
+        "refresh": {
+            "cards_sec": 10,
+            "charts_sec": 30,
+            "system_sec": 20,
+        },
+        "features": {
+            "system_cards": True,
+            "regime_cards": True,
+            "hedging_cards": True,
+            "bias_cards": True,
+        },
+    },
+    # NEW: notifications (used by notification_system)
+    "notifications": {
+        "default_channel": "console",          # console|email|webhook|twilio
+        "email": {"from": "alerts@goldmind.ai", "smtp_host": "", "smtp_port": 587, "username": "", "password": ""},
+        "webhook": {"url": ""},
+        "twilio": {"sid": "", "token": "", "from": ""},
+        "rate_limit_per_min": 30,
+    },
+    # NEW: system utilities knobs
+    "system_utilities": {
+        "disk_free_gb_warning": 5.0,
+        "disk_free_gb_error": 1.0,
+        "log_max_mb": 100.0,
+        "backup_zip": True,
+        "backup_dir": "backups",
+        "log_dir": "logs",
+    },
+    # NEW: adaptive learning knobs
+    "adaptive_learning": {
+        "ema_decay": 0.9,
+        "min_weight": 0.15,
+        "max_weight": 0.85,
+        "reward_scale": 1.0,
+    },
+    # NEW: market regime detector knobs
+    "regime_detector": {
+        "short_window": 20,
+        "medium_window": 50,
+        "long_window": 120,
+        "vol_window": 14,
+        "trend_threshold": 0.04,
+        "bearish_threshold": -0.04,
+        "vol_threshold": 0.03,
+    },
+}
 
-def _deep_merge_dicts(source: dict, destination: dict) -> dict:
-    """
-    Recursively merges source dict into destination dict.
-    Values from source overwrite values in destination.
-    """
-    for key, value in source.items():
-        if (
-            key in destination
-            and isinstance(destination[key], dict)
-            and isinstance(value, dict)
-        ):
-            destination[key] = _deep_merge_dicts(value, destination[key])
+
+# ---------------- Helpers ----------------
+
+def _deep_update(dst: Dict[str, Any], src: Dict[str, Any]) -> Dict[str, Any]:
+    for k, v in (src or {}).items():
+        if isinstance(v, dict) and isinstance(dst.get(k), dict):
+            _deep_update(dst[k], v)
         else:
-            destination[key] = value
-    return destination
+            dst[k] = v
+    return dst
 
 
-class ProductionConfigManager:
-    def __init__(self):
-        # 1️⃣ Load built-in defaults (with os.getenv overrides baked in)
-        self._config: dict = {
-            "system": {
-                "environment": os.getenv("SYSTEM_ENVIRONMENT", "development"),
-                "live_mode": os.getenv("SYSTEM_LIVE_MODE", "False").lower() == "true",
-                "auto_update": os.getenv("SYSTEM_AUTO_UPDATE", "True").lower() == "true",
-                "log_level": os.getenv("SYSTEM_LOG_LEVEL", "INFO").upper(),
-            },
-            "server": {
-                "host": os.getenv("SERVER_HOST", "0.0.0.0"),
-                "port": int(os.getenv("SERVER_PORT", 5000)),
-                "debug": os.getenv("SERVER_DEBUG", "False").lower() == "true",
-                "workers": int(os.getenv("SERVER_WORKERS", 4)),
-                "timeout": int(os.getenv("SERVER_TIMEOUT", 30)),
-            },
-            "database": {
-                "path": os.getenv("DATABASE_PATH", "./data/goldmind_ai.db"),
-                "backup_interval": int(os.getenv("DATABASE_BACKUP_INTERVAL", 3600)),
-                "create_samples": os.getenv("DATABASE_CREATE_SAMPLES", "False").lower() == "true",
-            },
-            "market_data": {
-                "update_interval": int(os.getenv("MARKET_DATA_UPDATE_INTERVAL", 30)),
-                "demo_mode": os.getenv("MARKET_DATA_DEMO_MODE", "True").lower() == "true",
-                "provider": os.getenv("MARKET_DATA_PROVIDER", "auto"),
-                "max_history_size": int(os.getenv("MARKET_DATA_MAX_HISTORY_SIZE", 5000)),
-                "retry_attempts": int(os.getenv("MARKET_DATA_RETRY_ATTEMPTS", 5)),
-                "retry_delay": int(os.getenv("MARKET_DATA_RETRY_DELAY", 10)),
-            },
-            "ml_models": {
-                "retrain_interval": int(os.getenv("ML_MODELS_RETRAIN_INTERVAL", 86400)),
-                "confidence_threshold": float(os.getenv("ML_MODELS_CONFIDENCE_THRESHOLD", 0.6)),
-                "auto_update": os.getenv("ML_MODELS_AUTO_UPDATE", "True").lower() == "true",
-                "gpu_enabled": os.getenv("ML_MODELS_GPU_ENABLED", "False").lower() == "true",
-                "sequence_length": int(os.getenv("ML_MODELS_SEQUENCE_LENGTH", 60)),
-                "lstm_units": int(os.getenv("ML_MODELS_LSTM_UNITS", 64)),
-                "dropout_rate": float(os.getenv("ML_MODELS_DROPOUT_RATE", 0.2)),
-                "learning_rate": float(os.getenv("ML_MODELS_LEARNING_RATE", 0.001)),
-                "batch_size": int(os.getenv("ML_MODELS_BATCH_SIZE", 32)),
-            },
-            "analytics": {
-                "enable_realtime": os.getenv("ANALYTICS_ENABLE_REALTIME", "True").lower() == "true",
-                "retention_days": int(os.getenv("ANALYTICS_RETENTION_DAYS", 90)),
-                "update_interval": int(os.getenv("ANALYTICS_UPDATE_INTERVAL", 3600)),
-                "cache_timeout": int(os.getenv("ANALYTICS_CACHE_TIMEOUT", 300)),
-            },
-            "security": {
-                "enable_audit_log": os.getenv("SECURITY_ENABLE_AUDIT_LOG", "True").lower() == "true",
-                "session_timeout": int(os.getenv("SECURITY_SESSION_TIMEOUT", 7200)),
-                "max_login_attempts": int(os.getenv("SECURITY_MAX_LOGIN_ATTEMPTS", 5)),
-                "block_duration_minutes": int(os.getenv("SECURITY_BLOCK_DURATION_MINUTES", 15)),
-            },
-            "auto_hedging": {
-                "risk_trigger": float(os.getenv("AUTO_HEDGING_RISK_TRIGGER", 7.0)),
-                "max_exposure": float(os.getenv("AUTO_HEDGING_MAX_EXPOSURE", 0.15)),
-                "cost_limit": int(os.getenv("AUTO_HEDGING_COST_LIMIT", 50)),
-                "auto_execute": os.getenv("AUTO_HEDGING_AUTO_EXECUTE", "False").lower() == "true",
-                "monitoring_interval": int(os.getenv("AUTO_HEDGING_MONITORING_INTERVAL", 300)),
-                "circuit_breaker": float(os.getenv("AUTO_HEDGING_CIRCUIT_BREAKER", 9.5)),
-                "max_hedge_duration": int(os.getenv("AUTO_HEDGING_MAX_HEDGE_DURATION", 45)),
-                "min_hedge_size": float(os.getenv("AUTO_HEDGING_MIN_HEDGE_SIZE", 0.02)),
-                "max_hedge_size": float(os.getenv("AUTO_HEDGING_MAX_HEDGE_SIZE", 0.20)),
-                "hedge_effectiveness_threshold": float(os.getenv("AUTO_HEDGING_EFFECTIVENESS_THRESHOLD", 0.6)),
-            },
-            "model_performance": {
-                "accuracy_threshold": float(os.getenv("MODEL_PERFORMANCE_ACCURACY_THRESHOLD", 0.75)),
-                "response_time_threshold": int(os.getenv("MODEL_PERFORMANCE_RESPONSE_TIME_THRESHOLD", 1000)),
-                "error_rate_threshold": float(os.getenv("MODEL_PERFORMANCE_ERROR_RATE_THRESHOLD", 0.05)),
-                "drift_threshold": float(os.getenv("MODEL_PERFORMANCE_DRIFT_THRESHOLD", 0.3)),
-                "resource_threshold": int(os.getenv("MODEL_PERFORMANCE_RESOURCE_THRESHOLD", 80)),
-                "throughput_threshold": int(os.getenv("MODEL_PERFORMANCE_THROUGHPUT_THRESHOLD", 5)),
-                "auto_fallback": os.getenv("MODEL_PERFORMANCE_AUTO_FALLBACK", "True").lower() == "true",
-                "fallback_threshold": float(os.getenv("MODEL_PERFORMANCE_FALLBACK_THRESHOLD", 0.60)),
-                "fallback_delay_minutes": int(os.getenv("MODEL_PERFORMANCE_FALLBACK_DELAY_MINUTES", 5)),
-                "recovery_threshold": float(os.getenv("MODEL_PERFORMANCE_RECOVERY_THRESHOLD", 0.80)),
-                "max_fallback_duration": int(os.getenv("MODEL_PERFORMANCE_MAX_FALLBACK_DURATION", 1440)),
-                "strategy": os.getenv("MODEL_PERFORMANCE_STRATEGY", "gradual"),
-                "canary_percentage": int(os.getenv("MODEL_PERFORMANCE_CANARY_PERCENTAGE", 10)),
-                "monitoring_interval": int(os.getenv("MODEL_PERFORMANCE_MONITORING_INTERVAL", 300)),
-                "prediction_buffer_size": int(os.getenv("MODEL_PERFORMANCE_PREDICTION_BUFFER_SIZE", 200)),
-                "ground_truth_buffer_size": int(os.getenv("MODEL_PERFORMANCE_GROUND_TRUTH_BUFFER_SIZE", 100)),
-                "response_time_buffer_size": int(os.getenv("MODEL_PERFORMANCE_RESPONSE_TIME_BUFFER_SIZE", 50)),
-                "feature_buffer_size": int(os.getenv("MODEL_PERFORMANCE_FEATURE_BUFFER_SIZE", 1000)),
-                "history_size": int(os.getenv("MODEL_PERFORMANCE_HISTORY_SIZE", 1000)),
-            },
-            "dual_system": {
-                "analytical_weight": float(os.getenv("DUAL_SYSTEM_ANALYTICAL_WEIGHT", 0.4)),
-                "ml_weight": float(os.getenv("DUAL_SYSTEM_ML_WEIGHT", 0.3)),
-                "lstm_weight": float(os.getenv("DUAL_SYSTEM_LSTM_WEIGHT", 0.3)),
-                "hybrid_weight": float(os.getenv("DUAL_SYSTEM_HYBRID_WEIGHT", 0.5)),
-                "bias_threshold": float(os.getenv("DUAL_SYSTEM_BIAS_THRESHOLD", 0.7)),
-                "consensus_threshold": float(os.getenv("DUAL_SYSTEM_CONSENSUS_THRESHOLD", 0.8)),
-                "uncertainty_penalty": float(os.getenv("DUAL_SYSTEM_UNCERTAINTY_PENALTY", 0.15)),
-                "bias_penalty_factor": float(os.getenv("DUAL_SYSTEM_BIAS_PENALTY_FACTOR", 0.2)),
-                "bias_detection_enabled": os.getenv("DUAL_SYSTEM_BIAS_DETECTION_ENABLED", "True").lower() == "true",
-                "bias_report_threshold": int(os.getenv("DUAL_SYSTEM_BIAS_REPORT_THRESHOLD", 60)),
-            },
-            "redis": {
-                "host": os.getenv("REDIS_HOST", "localhost"),
-                "port": int(os.getenv("REDIS_PORT", 6379)),
-                "db": int(os.getenv("REDIS_DB", 0)),
-                "password": os.getenv("REDIS_PASSWORD", None),
-            },
-            "goldmind_api": {
-                "api_key": os.getenv("GOLDMIND_API_KEY", ""),
-            }
-        }
-        logger.info("Loaded built-in default config (with env var overrides).")
+def _set_nested(d: Dict[str, Any], path: str, value: Any) -> None:
+    keys = path.split(".")
+    cur = d
+    for k in keys[:-1]:
+        cur = cur.setdefault(k, {})
+    cur[keys[-1]] = value
 
-    def load_config_from_file(self, config_file_path: str = "config.json"):
-        """Loads configuration from a JSON file and merges it over built-in defaults."""
-        file = Path(config_file_path)
-        if not file.is_file():
-            logger.warning(f"Config file not found at {config_file_path}; skipping.")
-            return
 
+def _get_nested(d: Dict[str, Any], path: str, default: Any = None) -> Any:
+    cur = d
+    for k in path.split("."):
+        if not isinstance(cur, dict) or k not in cur:
+            return default
+        cur = cur[k]
+    return cur
+
+
+def _coerce(value: str) -> Any:
+    """Best-effort type coercion from string env values."""
+    v = value.strip()
+    if v.lower() in {"true", "false"}:
+        return v.lower() == "true"
+    try:
+        if "." in v:
+            return float(v)
+        return int(v)
+    except ValueError:
+        return v
+
+
+def _apply_env_into(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
+    """
+    Map ENV keys with __ to nested paths (GOLDMIND__SERVER__PORT=8080 → server.port).
+    Also accept dot paths in ENV (SERVER.PORT=8080).
+    Only keys starting with GOLDMIND__ or in ALLOWLIST are applied.
+    """
+    allow_prefixes = ("GOLDMIND__", "SERVER.", "DATABASE.", "REDIS.", "DASHBOARD.", "NOTIFICATIONS.", "SYSTEM_UTILITIES.", "ADAPTIVE_LEARNING.", "REGIME_DETECTOR.", "GOLDMIND_API.")
+    for key, val in env.items():
+        if key.startswith("GOLDMIND__"):
+            path = key.replace("GOLDMIND__", "").lower().replace("__", ".")
+        elif key.startswith(allow_prefixes):
+            path = key.lower().replace("__", ".")
+        else:
+            continue
         try:
-            data = json.loads(file.read_text())
-            _deep_merge_dicts(data, self._config)
-            logger.info(f"Successfully merged config from {config_file_path}.")
-        except Exception as e:
-            logger.error(f"Failed to load/merge {config_file_path}: {e}", exc_info=True)
-
-    def load_env_file(self, env_path: str = ".env"):
-        """
-        Loads and overrides any variables in a .env file.
-        Keys must use '__' to indicate nesting, e.g. 'SERVER__PORT=8080'.
-        """
-        load_dotenv(env_path, override=True)
-        for key, val in os.environ.items():
-            if "__" not in key:
-                continue
-            parts = [p.lower() for p in key.split("__")]
-            self._set_by_path(parts, val)
-        logger.info(f"Loaded overrides from {env_path}.")
-
-    def _set_by_path(self, parts: list[str], value):
-        """Helper to set a nested key given a list of parts."""
-        current = self._config
-        for p in parts[:-1]:
-            current = current.setdefault(p, {})
-        current[parts[-1]] = value
-
-    def get(self, key_path: str, default=None):
-        """Retrieve nested config via dot-notation, e.g. get("server.port")."""
-        parts = key_path.split(".")
-        current = self._config
-        for p in parts:
-            if not isinstance(current, dict) or p not in current:
-                return default
-            current = current[p]
-        return current
-
-    @property
-    def config_data(self) -> dict:
-        """Expose the entire merged config as a plain dict."""
-        return self._config
+            _set_nested(cfg, path, _coerce(val))
+        except Exception:
+            _set_nested(cfg, path, val)
 
 
-# If you ever run this file directly, you’ll see your merged config printed.
+def _load_dotenv(path: str = ".env") -> Dict[str, str]:
+    data: Dict[str, str] = {}
+    if not os.path.exists(path):
+        return data
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                data[k.strip()] = v.strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return data
+
+
+# ---------------- Config class ----------------
+
+class Config:
+    def __init__(self, *, config_path: str = "config.json", overrides: Optional[Dict[str, Any]] = None) -> None:
+        cfg: Dict[str, Any] = json.loads(json.dumps(DEFAULTS))  # deep copy
+
+        # From config.json
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+                _deep_update(cfg, file_cfg)
+            except Exception as e:
+                print(f"[config] Warning: failed to read {config_path}: {e}")
+
+        # From .env (supports nested via __)
+        dotenv = _load_dotenv(".env")
+        _apply_env_into(cfg, dotenv)
+
+        # From environment variables
+        _apply_env_into(cfg, dict(os.environ))
+
+        # Runtime overrides
+        if overrides:
+            _deep_update(cfg, overrides)
+
+        # Finalize booleans that depend on env string
+        if isinstance(cfg.get("server", {}).get("force_https"), str):
+            cfg["server"]["force_https"] = str(cfg["server"]["force_https"]).lower() == "true"
+
+        self._cfg = cfg
+
+    # Basic accessors
+    def get(self, path: str, default: Any = None) -> Any:
+        return _get_nested(self._cfg, path, default)
+
+    def set(self, path: str, value: Any) -> None:
+        _set_nested(self._cfg, path, value)
+
+    def as_dict(self) -> Dict[str, Any]:
+        return json.loads(json.dumps(self._cfg))
+
+    def save(self, path: str = "config.generated.json") -> None:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self._cfg, f, indent=2)
+
+
+# ---------------- Demo ----------------
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    cfg = ProductionConfigManager()
-    cfg.load_config_from_file("config.json")
-    cfg.load_env_file(".env")
-    print(json.dumps(cfg.config_data, indent=2))
+    cfg = Config()
+    print(json.dumps(cfg.as_dict(), indent=2)[:2000])
+    print("Server:", cfg.get("server.host"), cfg.get("server.port"), "HTTPS:", cfg.get("server.force_https"))
+    print("Dashboard enabled:", cfg.get("dashboard.features.system_cards"))

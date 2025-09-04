@@ -1,99 +1,218 @@
+"""
+analytical_pathway.py — GoldMIND AI
+----------------------------------
+Rule-based technical pathway aligned with new dashboard/API shapes.
+- SMA(20/50) crossover + momentum/volatility context
+- Deterministic targets/SL from last price (no RNG)
+- Returns a normalized recommendation block
+- Includes dashboard mappers (card/summary)
+
+Public surface:
+    ap = AnalyticalPathway(config)
+    rec = ap.get_recommendation(df)  # df columns: Close [+ Open, High, Low, Volume optional]
+    card = AnalyticalPathway.to_recommendation_card(rec, symbol="XAU/USD")
+    summary = AnalyticalPathway.to_summary_block(rec, symbol="XAU/USD")
+"""
+from __future__ import annotations
+
 import logging
-import random
-import pandas as pd
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
+
 import numpy as np
+import pandas as pd
 
-# A class to simulate a rule-based or heuristic analytical pathway.
+
+log = logging.getLogger("goldmind.analytical")
+if not log.handlers:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+
+
+@dataclass
+class APConfig:
+    short_ma: int = 20
+    long_ma: int = 50
+    min_rows: int = 60
+    buy_tp_pct: float = 0.04        # +4% target for BUY
+    sell_tp_pct: float = -0.03      # -3% target for SELL (relative to last price)
+    buy_sl_pct: float = -0.04       # -4% stop for BUY
+    sell_sl_pct: float = 0.03       # +3% stop for SELL
+    default_position_size: float = 0.15
+    min_confidence: float = 0.5
+    cross_confidence: float = 0.8
+    hold_confidence: float = 0.55
+
+
 class AnalyticalPathway:
-    def __init__(self):
-        """
-        Initializes the AnalyticalPathway component.
-        """
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.info("AnalyticalPathway initialized. (Using mock rule-based strategy)")
+    """
+    Moving-average crossover with light momentum/volatility context.
+    Produces a dashboard-ready recommendation dict.
+    """
 
-    def _generate_price_targets(self, last_price, action, volatility_factor=0.01):
-        """
-        Generates mock buy and sell targets based on the last price and a simulated action.
-        
-        Args:
-            last_price (float): The last known closing price of the asset.
-            action (str): The simulated action ("BUY", "SELL", or "HOLD").
-            volatility_factor (float): A factor to simulate market volatility for target prices.
+    def __init__(self, config: Dict[str, Any] | None = None) -> None:
+        self.cfg = APConfig(**(config or {}))
+        log.info("AnalyticalPathway initialized: short=%s long=%s", self.cfg.short_ma, self.cfg.long_ma)
 
-        Returns:
-            tuple: A tuple containing (buy_target, sell_target).
-        """
-        if action == "BUY":
-            # For a BUY action, the buy target should be below the last price,
-            # and the sell target should be above it.
-            buy_target = last_price * (1 - random.uniform(volatility_factor, volatility_factor * 2))
-            sell_target = last_price * (1 + random.uniform(volatility_factor * 3, volatility_factor * 5))
-        elif action == "SELL":
-            # For a SELL action, the buy target should be above the last price (to cover),
-            # and the sell target should be below it.
-            buy_target = last_price * (1 + random.uniform(volatility_factor, volatility_factor * 2))
-            sell_target = last_price * (1 - random.uniform(volatility_factor * 3, volatility_factor * 5))
-        else: # HOLD
-            buy_target = None
-            sell_target = None
-            
-        return round(buy_target, 2) if buy_target else None, round(sell_target, 2) if sell_target else None
+    # ---------------- Core logic ----------------
 
-    def get_recommendation(self, processed_data):
+    def get_recommendation(self, processed_data: pd.DataFrame) -> Dict[str, Any]:
         """
-        Generates a recommendation based on a simple Moving Average crossover strategy.
+        Parameters
+        ----------
+        processed_data : pd.DataFrame
+            Expected columns: Close (float). Optional: Open/High/Low/Volume.
+            Index should be ascending DatetimeIndex; method will attempt to coerce.
 
-        Args:
-            processed_data (pd.DataFrame): The time-series data for the asset.
-
-        Returns:
-            dict: A recommendation containing action, confidence, and price targets.
-        """
-        self.logger.info("Running analytical and heuristic pathway (Moving Average Crossover).")
-        
-        # Check if there is enough data for the moving averages
-        if processed_data.empty or len(processed_data) < 50:
-            return {
-                "action": "HOLD",
-                "confidence": 0.0,
-                "reasoning": "Insufficient data for technical analysis.",
-                "buy_target": None,
-                "sell_target": None
+        Returns
+        -------
+        dict
+            {
+                "action": "BUY|SELL|HOLD",
+                "confidence": float [0..1],
+                "target_price": float,
+                "stop_loss": float,
+                "position_size": float,
+                "reasoning": str,
+                "risk_score": float [0..1]
             }
+        """
+        df = self._normalize(processed_data)
+        if df.empty or len(df) < self.cfg.min_rows:
+            return self._empty("Insufficient data for technical analysis.")
 
-        # Calculate a short-term (20-period) and a long-term (50-period) Simple Moving Average
-        processed_data['SMA_20'] = processed_data['Close'].rolling(window=20).mean()
-        processed_data['SMA_50'] = processed_data['Close'].rolling(window=50).mean()
+        # Indicators
+        df["SMA_S"] = df["Close"].rolling(self.cfg.short_ma).mean()
+        df["SMA_L"] = df["Close"].rolling(self.cfg.long_ma).mean()
+        df["RET1"] = df["Close"].pct_change().fillna(0.0)
+        df["VOL_PCT"] = df["RET1"].rolling(20).std().fillna(0.0)  # simple proxy
 
-        # Get the latest values
-        current_sma_20 = processed_data['SMA_20'].iloc[-1]
-        current_sma_50 = processed_data['SMA_50'].iloc[-1]
-        previous_sma_20 = processed_data['SMA_20'].iloc[-2]
-        previous_sma_50 = processed_data['SMA_50'].iloc[-2]
+        # Latest values
+        last = float(df["Close"].iloc[-1])
+        sma_s, sma_l = float(df["SMA_S"].iloc[-1]), float(df["SMA_L"].iloc[-1])
+        prev_s, prev_l = float(df["SMA_S"].iloc[-2]), float(df["SMA_L"].iloc[-2])
+        vol_pct = float(df["VOL_PCT"].iloc[-1])
 
+        # Decision
         action = "HOLD"
-        confidence = 0.5
-        reasoning = "Moving average lines are not in a clear crossover pattern."
+        confidence = self.cfg.hold_confidence
+        reason = "No confirmed crossover."
 
-        # Check for a "Golden Cross" (20 SMA crosses above 50 SMA)
-        if current_sma_20 > current_sma_50 and previous_sma_20 <= previous_sma_50:
-            action = "BUY"
-            confidence = 0.8
-            reasoning = "A 'Golden Cross' has occurred: the 20-period SMA has crossed above the 50-period SMA, indicating a potential bullish trend."
-        # Check for a "Death Cross" (20 SMA crosses below 50 SMA)
-        elif current_sma_20 < current_sma_50 and previous_sma_20 >= previous_sma_50:
-            action = "SELL"
-            confidence = 0.8
-            reasoning = "A 'Death Cross' has occurred: the 20-period SMA has crossed below the 50-period SMA, indicating a potential bearish trend."
-        
-        last_price = processed_data['Close'].iloc[-1]
-        buy_target, sell_target = self._generate_price_targets(last_price, action)
+        if np.isfinite(sma_s) and np.isfinite(sma_l) and np.isfinite(prev_s) and np.isfinite(prev_l):
+            # Golden/Death cross detection
+            if sma_s > sma_l and prev_s <= prev_l:
+                action = "BUY"
+                confidence = self.cfg.cross_confidence
+                reason = "Golden Cross: SMA(short) crossed above SMA(long)."
+            elif sma_s < sma_l and prev_s >= prev_l:
+                action = "SELL"
+                confidence = self.cfg.cross_confidence
+                reason = "Death Cross: SMA(short) crossed below SMA(long)."
+            else:
+                # momentum tilt
+                momentum = float(df["Close"].iloc[-1] / df["Close"].iloc[-20] - 1.0) if len(df) >= 21 else 0.0
+                if momentum > 0.02:
+                    action, reason = "BUY", "Mild positive momentum tilt; no cross."
+                    confidence = 0.62
+                elif momentum < -0.02:
+                    action, reason = "SELL", "Mild negative momentum tilt; no cross."
+                    confidence = 0.62
+
+        # Targets & stops (deterministic percentages from last price)
+        if action == "BUY":
+            target = last * (1.0 + abs(self.cfg.buy_tp_pct))
+            stop = last * (1.0 + self.cfg.buy_sl_pct)
+        elif action == "SELL":
+            target = last * (1.0 + self.cfg.sell_tp_pct)  # negative pct lowers target
+            stop = last * (1.0 + abs(self.cfg.sell_sl_pct))  # protective stop above price
+        else:
+            target = last
+            stop = last * 0.99  # tight stop placeholder
+
+        # Risk score heuristic (higher vol → higher risk)
+        risk = float(min(0.9, max(0.1, vol_pct * 10)))
 
         return {
             "action": action,
-            "confidence": confidence,
-            "reasoning": reasoning,
-            "buy_target": buy_target,
-            "sell_target": sell_target
+            "confidence": float(max(self.cfg.min_confidence, min(1.0, confidence))),
+            "target_price": float(round(target, 4)),
+            "stop_loss": float(round(stop, 4)),
+            "position_size": float(self.cfg.default_position_size),
+            "reasoning": reason,
+            "risk_score": risk,
         }
+
+    # ---------------- Dashboard mappers ----------------
+
+    @staticmethod
+    def to_recommendation_card(rec: Dict[str, Any], symbol: str = "") -> Dict[str, Any]:
+        return {
+            "action": str(rec.get("action", "HOLD")).upper(),
+            "confidence": float(rec.get("confidence", 0.5)),
+            "entry": None,
+            "target": float(rec.get("target_price", 0.0)),
+            "note": rec.get("reasoning", ""),
+            "symbol": symbol,
+        }
+
+    @staticmethod
+    def to_summary_block(rec: Dict[str, Any], symbol: str = "") -> Dict[str, Any]:
+        action = str(rec.get("action", "HOLD")).upper()
+        pc = float(rec.get("confidence", 0.5)) * 100.0
+        if action == "BUY" and pc >= 65:
+            regime = "Bullish Trend"
+        elif action == "SELL" and pc >= 65:
+            regime = "Bearish Trend"
+        else:
+            regime = "Neutral / Range"
+        # Approximate volatility label from risk_score
+        r = float(rec.get("risk_score", 0.5))
+        volatility = "High" if r >= 0.7 else "Moderate" if r >= 0.4 else "Low"
+        return {"regime": regime, "volatility": volatility, "note": rec.get("reasoning", ""), "symbol": symbol}
+
+    # ---------------- Helpers ----------------
+
+    def _normalize(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df is None or df.empty:
+            return pd.DataFrame()
+        out = df.copy()
+        # unify capitalization & ensure Close
+        out = out.rename(columns={c: str(c).capitalize() for c in out.columns})
+        if "Close" not in out.columns:
+            # try common variants
+            for alt in ("Adj close", "Adjusted close", "Price"):
+                if alt in out.columns:
+                    out["Close"] = out[alt]
+                    break
+        # ensure datetime index ascending
+        if not isinstance(out.index, pd.DatetimeIndex):
+            try:
+                out.index = pd.to_datetime(out.index, utc=False)
+            except Exception:
+                pass
+        return out.sort_index()
+
+    def _empty(self, msg: str) -> Dict[str, Any]:
+        return {
+            "action": "HOLD",
+            "confidence": 0.0,
+            "target_price": 0.0,
+            "stop_loss": 0.0,
+            "position_size": self.cfg.default_position_size,
+            "reasoning": msg,
+            "risk_score": 0.5,
+        }
+
+
+# ---------------- Demo ----------------
+if __name__ == "__main__":
+    import numpy as np
+
+    idx = pd.date_range(end=pd.Timestamp.utcnow(), periods=120, freq="D")
+    base = np.cumsum(np.random.normal(0, 0.5, len(idx))) + 100
+    df = pd.DataFrame({"Close": base}, index=idx)
+
+    ap = AnalyticalPathway({})
+    rec = ap.get_recommendation(df)
+    print("Recommendation:", rec)
+    print("Card:", AnalyticalPathway.to_recommendation_card(rec, symbol="XAU/USD"))
+    print("Summary:", AnalyticalPathway.to_summary_block(rec, symbol="XAU/USD"))

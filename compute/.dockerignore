@@ -1,25 +1,41 @@
-# VCS
-.git
-.gitignore
-
-# Python cache
+# reduce build context dramatically
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.pyi
+*.log
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
 
-# Local envs
+# Venvs
 venv/
 .venv/
-env/
-ENV/
 
-# Large / not needed at build time
-data/
-logs/
-lstm_models/
-engine/
-deploy/
-scripts/
-*.csv
-*.parquet
-*.xlsx
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.parcel-cache/
+*.map
+
+# Git & editors
+.git/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data / models (if large)
+compute/models/*
+!compute/models/README.md
+
+# Other large folders you don't need in image
+public/

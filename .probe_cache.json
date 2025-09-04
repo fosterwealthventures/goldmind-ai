@@ -1,0 +1,107 @@
+{
+  "ts": 1756680883.5445096,
+  "payload": {
+    "ok": false,
+    "results": [
+      {
+        "provider": "yfinance",
+        "status": "PASS",
+        "price": 318.04998779296875,
+        "note": "GLD"
+      },
+      {
+        "provider": "twelvedata",
+        "status": "PASS",
+        "price": 3461.99,
+        "note": null
+      },
+      {
+        "provider": "alphavantage",
+        "status": "FAIL",
+        "price": null,
+        "note": "Invalid API call. Please retry or visit the documentation (https://www.alphavantage.co/documentation/) for CURRENCY_EXCHANGE_RATE."
+      },
+      {
+        "provider": "fred",
+        "status": "FAIL",
+        "price": null,
+        "note": "Bad Request.  The value for variable api_key is not a 32 character alpha-numeric lower-case string.  Read https://fred.stlouisfed.org/docs/api/api_key.html for more information."
+      },
+      {
+        "provider": "metalprice",
+        "status": "PASS",
+        "price": 3448.0023998097,
+        "note": null
+      },
+      {
+        "provider": "goldpricez",
+        "status": "PASS",
+        "price": 3450.53,
+        "note": null
+      }
+    ],
+    "ttl_sec": 60
+  },
+  "fred_macro": {
+    "ts": 1756694619.855649,
+    "val": {
+      "CPIAUCSL": {
+        "label": "CPI (Index)",
+        "value": 322.132
+      },
+      "DGS10": {
+        "label": "10Y Treasury Yield (%)",
+        "value": 4.22
+      },
+      "T10YIE": {
+        "label": "10Y Breakeven Inflation (%)",
+        "value": 2.41
+      },
+      "DTWEXBGS": {
+        "label": "Broad Dollar Index",
+        "value": 120.6974
+      }
+    }
+  },
+  "probe_all": {
+    "ts": 1756863255.4315116,
+    "val": [
+      [
+        "yfinance",
+        "FAIL",
+        null,
+        "No data (GLD)"
+      ],
+      [
+        "twelvedata",
+        "SKIP",
+        null,
+        "TWELVE_DATA_API_KEY not set"
+      ],
+      [
+        "alphavantage",
+        "SKIP",
+        null,
+        "ALPHA_VANTAGE_API_KEY not set"
+      ],
+      [
+        "metalprice",
+        "SKIP",
+        null,
+        "METALPRICE_API_KEY not set"
+      ],
+      [
+        "goldpricez",
+        "SKIP",
+        null,
+        "API key not set"
+      ],
+      [
+        "fred",
+        "FAIL",
+        null,
+        "{\"CPIAUCSL\": {\"label\": \"CPI (Index)\", \"error\": \"HTTP 400: {'error_code': 400, 'error_message': 'Bad Request.  The value for variable api_key is not a 32 character alpha-numeric lower-case string.  Read https://fred.stlouisfed.org/docs/api/api_key.html for more information.'}\"}, \"DGS10\": {\"label\": \"10Y Treasury Yield (%)\", \"error\": \"HTTP 400: {'error_code': 400, 'error_message': 'Bad Request.  The value for variable api_key is not a 32 character alpha-numeric lower-case string.  Read https://fred.stlouisfed.org/docs/api/api_key.html for more information.'}\"}, \"T10YIE\": {\"label\": \"10Y Breakeven Inflation (%)\", \"error\": \"HTTP 400: {'error_code': 400, 'error_message': 'Bad Request.  The value for variable api_key is not a 32 character alpha-numeric lower-case string.  Read https://fred.stlouisfed.org/docs/api/api_key.html for more information.'}\"}, \"DTWEXBGS\": {\"label\": \"Broad Dollar Index\", \"error\": \"HTTP 400: {'error_code': 400, 'error_message': 'Bad Request.  The value for variable api_key is not a 32 character alpha-numeric lower-case string.  Read https://fred.stlouisfed.org/docs/api/api_key.html for more information.'}\"}}"
+      ]
+    ]
+  }
+}

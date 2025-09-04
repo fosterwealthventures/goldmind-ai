@@ -1,12 +1,7 @@
-# compute/engine/__init__.py
-from .server import app, create_app  # exporting app is enough
+# compute/app/__init__.py
+from .server import app
 
-"""
-Engine package.
+__all__ = ["app"]
 
-Import submodules explicitly, e.g.:
-    from engine.financial_data_framework import FinancialDataFramework
-    from engine.lstm_temporal_analysis import LSTMTemporalAnalysis
-"""
-
-__all__ = []  # keep empty; no eager re-exports to avoid side effects
+def create_app():
+    return app

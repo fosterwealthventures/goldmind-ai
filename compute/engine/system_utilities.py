@@ -41,28 +41,41 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class SystemUtilities:
-    # --- IMPORTANT CHANGE HERE: Now accepts 'config' (dict) directly ---
-    def __init__(self, config: Dict, db_manager: Optional[FinancialDataFramework] = None):
-        # The 'config' argument now directly receives the resolved configuration dictionary
-        self.config = config
+    def __init__(self, config_path: str = "config.json", db_manager: Optional[FinancialDataFramework] = None):
+        self.config = self.load_config(config_path)
         self.db_manager = db_manager # Injected FinancialDataFramework instance
-        
-        # Access config values directly from the passed 'config' dictionary
-        # No need to load config from a path here, as it's already resolved upstream
-        self.db_path = self.config.get('database', {}).get('path', './data/goldmind_ai.db') # Use config or default
+        self.db_path = self.config.get('database', {}).get('path', 'goldmind_ai.db') # Use config or default
         self.backup_dir = "backups"
         self.log_dir = "logs"
 
-        # Ensure directories exist (based on local paths or paths from config)
-        os.makedirs(os.path.dirname(self.db_path) if os.path.dirname(self.db_path) else './data', exist_ok=True)
+        # Ensure directories exist
         os.makedirs(self.backup_dir, exist_ok=True)
         os.makedirs(self.log_dir, exist_ok=True)
 
         logger.info("System Utilities initialized.")
 
-    # Removed load_config and get_default_config methods as config is now passed directly
-    # These methods are no longer needed within SystemUtilities itself for its primary function.
-    # The responsibility of loading and resolving config is now handled by ProductionConfigManager and entrypoint.
+    def load_config(self, config_path: str) -> Dict:
+        """Load system configuration."""
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    return json.load(f)
+            else:
+                logger.warning(f"Config file '{config_path}' not found. Using default config.")
+                return self.get_default_config()
+        except Exception as e:
+            logger.error(f"Error loading config from {config_path}: {e}. Using defaults.", exc_info=True)
+            return self.get_default_config()
+
+    def get_default_config(self) -> Dict:
+        """Get default configuration."""
+        return {
+            "database": {"path": "goldmind_ai.db"},
+            "server": {"host": "0.0.0.0", "port": 5000},
+            "logging": {"level": "INFO", "file": "goldmind_app.log"},
+            "market_data": {"update_interval": 30, "demo_mode": True},
+            "ml_models": {}, "analytics": {}, "security": {}, "auto_hedging": {}, "model_performance": {}, "ultimate_manager": {}
+        }
 
     def check_system_health(self) -> Dict:
         """Comprehensive system health check."""
@@ -141,23 +154,15 @@ class SystemUtilities:
             cursor = conn.cursor()
 
             # Check database integrity
-            # Use PRAGMA integrity_check if it's an SQLite connection, otherwise adjust for other DBs
-            try:
-                cursor.execute('PRAGMA integrity_check')
-                integrity_result = cursor.fetchone()[0]
-            except sqlite3.OperationalError: # Catch if not SQLite (e.g., mock for other DBs)
-                integrity_result = 'N/A (not SQLite or connection error)'
+            cursor.execute('PRAGMA integrity_check')
+            integrity_result = cursor.fetchone()[0]
 
             # Get database size
             db_size = os.path.getsize(self.db_path) if os.path.exists(self.db_path) else 0
 
             # Count tables
-            try:
-                cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")
-                table_count = cursor.fetchone()[0]
-            except sqlite3.OperationalError:
-                table_count = 'N/A'
-
+            cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")
+            table_count = cursor.fetchone()[0]
 
             # Check for essential tables (adjust list based on your actual schema)
             required_tables = [
@@ -169,27 +174,23 @@ class SystemUtilities:
             ]
 
             missing_tables = []
-            if isinstance(table_count, int): # Only check if we could count tables
-                for table in required_tables:
-                    cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (table,))
-                    if cursor.fetchone()[0] == 0:
-                        missing_tables.append(table)
+            for table in required_tables:
+                cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (table,))
+                if cursor.fetchone()[0] == 0:
+                    missing_tables.append(table)
 
             conn.close()
 
             # Determine status
-            if integrity_result != 'ok' and integrity_result != 'N/A (not SQLite or connection error)':
+            if integrity_result != 'ok':
                 status = 'error'
                 message = f'Database integrity check failed: {integrity_result}'
             elif missing_tables:
                 status = 'warning'
                 message = f'Missing essential tables: {", ".join(missing_tables)}'
-            elif db_size == 0 and os.path.exists(self.db_path):
+            elif db_size == 0:
                 status = 'warning'
                 message = 'Database file is empty.'
-            elif not os.path.exists(self.db_path):
-                status = 'error'
-                message = f'Database file not found at expected path: {self.db_path}'
             else:
                 status = 'healthy'
                 message = 'Database is healthy'
@@ -225,11 +226,11 @@ class SystemUtilities:
 
             # Determine status
             issues = []
-            if cpu_percent > self.config.get('system', {}).get('cpu_usage_threshold', 90): # Use config for thresholds
+            if cpu_percent > 90:
                 issues.append(f'High CPU usage: {cpu_percent:.1f}%')
-            if memory_percent > self.config.get('system', {}).get('memory_usage_threshold', 90): # Use config for thresholds
+            if memory_percent > 90:
                 issues.append(f'High memory usage: {memory_percent:.1f}%')
-            if memory_available_gb < self.config.get('system', {}).get('min_available_memory_gb', 0.5): # Use config for thresholds
+            if memory_available_gb < 0.5: # Less than 0.5GB available
                 issues.append(f'Low available memory: {memory_available_gb:.1f}GB')
 
             if issues:
@@ -259,37 +260,29 @@ class SystemUtilities:
     def check_disk_space(self) -> Dict:
         """Check available disk space."""
         try:
-            # Check the directory where the database is stored
-            check_path = os.path.dirname(self.db_path) if os.path.dirname(self.db_path) else os.getcwd()
-            disk_usage = psutil.disk_usage(check_path)
+            disk_usage = psutil.disk_usage(os.getcwd()) # Check current working directory's disk
             free_gb = disk_usage.free / (1024 ** 3)
             total_gb = disk_usage.total / (1024 ** 3)
             used_percent = disk_usage.percent
 
-            # Determine status using thresholds from config
-            min_free_gb_critical = self.config.get('system', {}).get('disk_free_gb_critical', 1.0)
-            min_free_gb_warning = self.config.get('system', {}).get('disk_free_gb_warning', 5.0)
-            max_used_percent_warning = self.config.get('system', {}).get('disk_used_percent_warning', 90.0)
-
-
-            if free_gb < min_free_gb_critical:
+            # Determine status
+            if free_gb < 1:
                 status = 'error'
-                message = f'Critical: Only {free_gb:.1f}GB free space remaining on {check_path}'
-            elif free_gb < min_free_gb_warning:
+                message = f'Critical: Only {free_gb:.1f}GB free space remaining'
+            elif free_gb < 5:
                 status = 'warning'
-                message = f'Warning: Only {free_gb:.1f}GB free space remaining on {check_path}'
-            elif used_percent > max_used_percent_warning:
+                message = f'Warning: Only {free_gb:.1f}GB free space remaining'
+            elif used_percent > 90:
                 status = 'warning'
-                message = f'Disk {used_percent:.1f}% full on {check_path}'
+                message = f'Disk {used_percent:.1f}% full'
             else:
                 status = 'healthy'
-                message = f'{free_gb:.1f}GB free space available on {check_path}'
+                message = f'{free_gb:.1f}GB free space available'
 
             return {
                 'status': status,
                 'message': message,
                 'details': {
-                    'checked_path': check_path,
                     'free_gb': round(free_gb, 2),
                     'total_gb': round(total_gb, 2),
                     'used_percent': round(used_percent, 1)
@@ -307,41 +300,33 @@ class SystemUtilities:
         try:
             issues = []
 
-            # Paths to check based on configuration
-            paths_to_check = [
-                self.db_path,
-                self.backup_dir,
-                self.log_dir,
-                os.getcwd(), # Current working directory
-                # Add other critical directories from config, e.g., model storage
-                self.config.get('ml_models', {}).get('model_storage_path', 'lstm_models')
-            ]
-            
-            # Ensure model storage path exists for check
-            model_storage_path = self.config.get('ml_models', {}).get('model_storage_path', 'lstm_models')
-            os.makedirs(model_storage_path, exist_ok=True)
+            # Check database file permissions
+            if os.path.exists(self.db_path):
+                if not os.access(self.db_path, os.R_OK | os.W_OK):
+                    issues.append(f'Database file not readable/writable: {self.db_path}')
 
+            # Check backup directory permissions
+            if not os.path.exists(self.backup_dir):
+                os.makedirs(self.backup_dir, exist_ok=True) # Try to create if missing
+            if not os.access(self.backup_dir, os.R_OK | os.W_OK):
+                issues.append(f'Backup directory not accessible: {self.backup_dir}')
 
-            for path_to_check in paths_to_check:
-                if not os.path.exists(path_to_check):
-                    issues.append(f'Path not found: {path_to_check}')
-                    continue
+            # Check log directory permissions
+            if not os.path.exists(self.log_dir):
+                os.makedirs(self.log_dir, exist_ok=True) # Try to create if missing
+            if not os.access(self.log_dir, os.R_OK | os.W_OK):
+                issues.append(f'Log directory not accessible: {self.log_dir}')
 
-                # Check read/write permissions
-                is_readable = os.access(path_to_check, os.R_OK)
-                is_writable = os.access(path_to_check, os.W_OK)
-
-                if not is_readable:
-                    issues.append(f'Path not readable: {path_to_check}')
-                if not is_writable:
-                    issues.append(f'Path not writable: {path_to_check}')
+            # Check current directory permissions
+            if not os.access(os.getcwd(), os.R_OK | os.W_OK):
+                issues.append('Current working directory not accessible for read/write.')
 
             if issues:
                 status = 'error'
                 message = '; '.join(issues)
             else:
                 status = 'healthy'
-                message = 'File permissions are correct for critical paths'
+                message = 'File permissions are correct'
 
             return {
                 'status': status,
@@ -360,30 +345,22 @@ class SystemUtilities:
     def check_log_files(self) -> Dict:
         """Check log file health (size, writability)."""
         try:
-            # Use the log file path defined in the config, ensuring it's relative to log_dir if not absolute
-            log_file_name = self.config.get('logging', {}).get('file', 'goldmind_app.log')
-            log_file_path = os.path.join(self.log_dir, log_file_name) # Assume logs are in log_dir
-
+            # Use the log file defined in the config
+            log_file = self.config.get('logging', {}).get('file', 'goldmind_app.log')
             issues = []
 
-            if not os.path.exists(log_file_path):
-                issues.append(f'Main log file not found: {log_file_path}')
+            if not os.path.exists(log_file):
+                issues.append(f'Main log file not found: {log_file}')
             else:
-                log_size = os.path.getsize(log_file_path)
+                log_size = os.path.getsize(log_file)
                 log_size_mb = log_size / (1024 * 1024)
 
-                # Use log file size threshold from config if available, otherwise default
-                log_size_threshold_mb = self.config.get('logging', {}).get('max_log_size_mb', 100)
-                if log_size_mb > log_size_threshold_mb:
-                    issues.append(f'Large log file: {log_file_path} is {log_size_mb:.1f}MB (threshold: {log_size_threshold_mb}MB)')
+                if log_size_mb > 100: # Warning for large log files
+                    issues.append(f'Large log file: {log_size_mb:.1f}MB (consider cleaning)')
 
                 # Check if log file is writable
-                if not os.access(log_file_path, os.W_OK):
-                    issues.append(f'Log file not writable: {log_file_path}')
-
-            # Also check if the log directory itself is writable
-            if not os.access(self.log_dir, os.W_OK):
-                issues.append(f'Log directory not writable: {self.log_dir}')
+                if not os.access(log_file, os.W_OK):
+                    issues.append(f'Log file not writable: {log_file}')
 
             if issues:
                 status = 'warning'
@@ -396,7 +373,7 @@ class SystemUtilities:
                 'status': status,
                 'message': message,
                 'details': {
-                    'log_file_path': log_file_path,
+                    'log_file': log_file,
                     'size_mb': round(log_size_mb, 2) if 'log_size_mb' in locals() else 0,
                     'issues': issues
                 }
@@ -416,40 +393,31 @@ class SystemUtilities:
             # Test basic internet connectivity by trying to connect to Google's DNS
             internet_status = 'disconnected'
             try:
-                # Use a small timeout for a quick check
-                socket.create_connection(("8.8.8.8", 53), timeout=1).close()
+                socket.create_connection(("8.8.8.8", 53), timeout=3)
                 internet_status = 'connected'
             except OSError:
                 pass # Connection failed
-            except Exception as e:
-                logger.debug(f"Internet connectivity check error: {e}")
-                
+
             # Check if server port is available (not in use by another process)
             server_config = self.config.get('server', {})
             host = server_config.get('host', '0.0.0.0')
             port = server_config.get('port', 5000)
 
             port_status = 'unknown'
-            if host == '0.0.0.0': # Can't bind to 0.0.0.0 reliably for checking if it's *in use* by *another* process
-                # If host is 0.0.0.0, we can't reliably check if it's already bound without trying to bind on a specific IP.
-                # This check is more reliable for specific hosts (e.g., '127.0.0.1').
-                port_status = 'bindable (0.0.0.0 host)'
-            else:
-                try:
-                    # Try to bind to the port to see if it's free
-                    temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    temp_sock.settimeout(1)
-                    temp_sock.bind((host, port))
-                    temp_sock.close()
-                    port_status = 'available'
-                except OSError as e:
-                    if e.errno == 98: # EADDRINUSE
-                        port_status = 'in_use'
-                    else:
-                        port_status = f'error: {e}'
-                except Exception as e:
-                    logger.debug(f"Server port check error: {e}")
-                    port_status = 'error'
+            try:
+                # Try to bind to the port to see if it's free
+                temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                temp_sock.settimeout(1)
+                temp_sock.bind((host, port))
+                temp_sock.close()
+                port_status = 'available'
+            except OSError as e:
+                if e.errno == 98: # EADDRINUSE
+                    port_status = 'in_use'
+                else:
+                    port_status = f'error: {e}'
+            except Exception:
+                port_status = 'error'
 
             # Determine overall status
             if internet_status == 'disconnected':
@@ -497,25 +465,17 @@ class SystemUtilities:
             api_health_status = 'healthy'
             api_details = {}
 
-            # Use thresholds from config for API error rates
-            api_error_threshold = self.config.get('analytics', {}).get('api_error_rate_threshold_percent', 10) # Default 10%
-            api_usage_warning_threshold = self.config.get('analytics', {}).get('api_usage_warning_percent', 90) # Default 90%
-
             for api_name, stats in api_report['apis'].items():
                 status = 'healthy'
                 issues = []
 
-                # Ensure 'error_rate' and 'daily_usage_percent' exist in stats
-                current_error_rate = stats.get('error_rate', 0)
-                current_daily_usage_percent = stats.get('daily_usage_percent', 0)
-
-                if current_error_rate > api_error_threshold:
+                if stats['error_rate'] > 10: # More than 10% errors
                     status = 'error'
-                    issues.append(f"High error rate: {current_error_rate:.1f}%")
+                    issues.append(f"High error rate: {stats['error_rate']:.1f}%")
                     api_health_status = 'error' # Elevate overall status
-                elif current_daily_usage_percent > api_usage_warning_threshold:
+                elif stats['daily_usage_percent'] > 90: # Near daily limit
                     status = 'warning'
-                    issues.append(f"Near daily limit: {current_daily_usage_percent:.1f}% used")
+                    issues.append(f"Near daily limit: {stats['daily_usage_percent']:.1f}% used")
                     if api_health_status == 'healthy': # Don't downgrade from error
                         api_health_status = 'warning'
 
@@ -820,32 +780,27 @@ class SystemUtilities:
             total_space_saved = 0
 
             # Determine the main log file path
-            # Assume log files defined in config are within the self.log_dir
-            main_log_file_name = self.config.get('logging', {}).get('file', 'goldmind_app.log')
-            main_log_file_path = os.path.join(self.log_dir, main_log_file_name)
-
+            main_log_file = self.config.get('logging', {}).get('file', 'goldmind_app.log')
 
             # Clean main log file if it's too large (archive and restart)
-            if os.path.exists(main_log_file_path):
-                log_size = os.path.getsize(main_log_file_path)
-                # Use log file size threshold from config
-                log_size_threshold_mb = self.config.get('logging', {}).get('max_log_size_mb', 50)
-                log_size_threshold_bytes = log_size_threshold_mb * 1024 * 1024
+            if os.path.exists(main_log_file):
+                log_size = os.path.getsize(main_log_file)
+                log_size_mb = log_size / (1024 * 1024)
 
-                if log_size > log_size_threshold_bytes:
+                if log_size_mb > 50:  # If log file is larger than 50MB
                     # Archive current log
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    archived_log = os.path.join(self.log_dir, f'{os.path.basename(main_log_file_path)}.{timestamp}.gz')
+                    archived_log = os.path.join(self.log_dir, f'{os.path.basename(main_log_file)}.{timestamp}.gz')
 
                     # Compress and move the log file
-                    with open(main_log_file_path, 'rb') as f_in:
+                    with open(main_log_file, 'rb') as f_in:
                         with gzip.open(archived_log, 'wb') as f_out:
                             shutil.copyfileobj(f_in, f_out)
 
                     # Clear the original log file
-                    open(main_log_file_path, 'w').close()
+                    open(main_log_file, 'w').close()
 
-                    cleaned_files.append(f'Archived and reset large log file: {os.path.basename(main_log_file_path)} to {os.path.basename(archived_log)}')
+                    cleaned_files.append(f'Archived and reset large log file: {os.path.basename(main_log_file)} to {os.path.basename(archived_log)}')
                     total_space_saved += log_size # Count original size as saved
 
             # Clean old archived logs in the log_dir
@@ -857,7 +812,7 @@ class SystemUtilities:
                 if os.path.isfile(file_path):
                     file_modified = datetime.fromtimestamp(os.path.getmtime(file_path))
 
-                    if file_modified < cutoff_date and file_name != main_log_file_name: # Don't delete the currently active log file if it's within days_to_keep
+                    if file_modified < cutoff_date:
                         file_size = os.path.getsize(file_path)
                         os.remove(file_path)
 
@@ -892,7 +847,7 @@ class SystemUtilities:
             report = {
                 'report_info': {
                     'generated_at': datetime.now().isoformat(),
-                    'goldmind_version': self.config.get('system', {}).get('version', '1.0.0-beta'), # Use version from config
+                    'goldmind_version': '1.0.0-beta', # Update version
                     'python_version': platform.python_version(),
                     'platform': platform.platform(),
                     'system_uptime_seconds': time.monotonic() # System uptime since boot
@@ -946,9 +901,9 @@ class SystemUtilities:
             config_export = {
                 'export_info': {
                     'exported_at': datetime.now().isoformat(),
-                    'version': self.config.get('system', {}).get('version', '1.0.0-beta')
+                    'version': '1.0.0-beta'
                 },
-                'configuration': self.config, # Export the full resolved config
+                'configuration': self.config,
                 'system_info': {
                     'platform': platform.platform(),
                     'python_version': platform.python_version()
@@ -983,56 +938,24 @@ def main():
     parser.add_argument('--backup-name', help='Name for backup file')
     parser.add_argument('--backup-file', help='Backup file to restore from')
     parser.add_argument('--days', type=int, default=30, help='Days to keep for log cleanup')
-    # Removed --config argument as SystemUtilities no longer loads it directly
-    parser.add_argument('--db-path', default='test_goldmind_ai.db', help='Override database path for testing (e.g., test_goldmind_ai.db)')
+    parser.add_argument('--config', default='config.json', help='Configuration file path')
+    parser.add_argument('--db-path', help='Override database path (for testing)')
 
     args = parser.parse_args()
 
-    # Define a default minimal config for standalone CLI execution
-    # This acts as a fallback if a full config from entrypoint isn't available
-    default_cli_config = {
-        "database": {"path": args.db_path}, # Use the CLI provided db_path
-        "server": {"host": "0.0.0.0", "port": 5000},
-        "logging": {"level": "INFO", "file": "goldmind_app.log", "max_log_size_mb": 50},
-        "system": {
-            "environment": "development",
-            "cpu_usage_threshold": 90,
-            "memory_usage_threshold": 90,
-            "min_available_memory_gb": 0.5,
-            "disk_free_gb_critical": 1.0,
-            "disk_free_gb_warning": 5.0,
-            "disk_used_percent_warning": 90.0,
-            "version": "1.0.0-beta"
-        },
-        "ml_models": {"model_storage_path": "lstm_models"}, # Add model storage path for permissions check
-        "analytics": {"api_error_rate_threshold_percent": 10, "api_usage_warning_percent": 90},
-    }
-
     # Initialize a mock FinancialDataFramework for standalone testing
+    # In a real deployed system, SystemUtilities would receive a real db_manager instance
     class MockFinancialDataFrameworkForUtils:
         def get_connection(self):
             # For testing, connect to a temporary in-memory DB or a dummy file
-            db_file_path = default_cli_config['database']['path']
-            # Ensure the directory for the dummy DB exists during standalone test
-            os.makedirs(os.path.dirname(db_file_path) if os.path.dirname(db_file_path) else '.', exist_ok=True)
-            
-            conn = sqlite3.connect(db_file_path)
+            # This allows DB checks to run without needing a full FDF setup
+            db_file = args.db_path if args.db_path else ':memory:'
+            conn = sqlite3.connect(db_file)
             conn.row_factory = sqlite3.Row
             # Create minimal tables for health check to pass
             cursor = conn.cursor()
             cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY)")
             cursor.execute("CREATE TABLE IF NOT EXISTS api_usage (id INTEGER PRIMARY KEY)")
-            # Add essential tables for check_database_health to pass as healthy
-            required_tables_for_mock = [
-                'recommendations', 'user_feedback', 'user_activities',
-                'data_cache', 'error_log', 'hedge_executions',
-                'model_performance_snapshots', 'performance_alerts', 'fallback_events',
-                'conflict_history', 'bias_history', 'user_analytics', 'system_analytics',
-                'user_profiles', 'notification_settings', 'user_trading_history'
-            ]
-            for table in required_tables_for_mock:
-                cursor.execute(f"CREATE TABLE IF NOT EXISTS {table} (id INTEGER PRIMARY KEY)")
-            
             conn.commit()
             return conn
         def get_usage_report(self):
@@ -1047,8 +970,8 @@ def main():
 
     mock_db_manager = MockFinancialDataFrameworkForUtils()
 
-    # Initialize system utilities with the default CLI config
-    utilities = SystemUtilities(config=default_cli_config, db_manager=mock_db_manager)
+    # Initialize system utilities
+    utilities = SystemUtilities(config_path=args.config, db_manager=mock_db_manager)
 
     # Execute command
     if args.command == 'health':
@@ -1121,6 +1044,7 @@ def main():
             print(f"❌ {result['message']}")
 
     elif args.command == 'clean-logs':
+        # Removed the top-level import of gzip here, as it's now handled inside the function
         result = utilities.clean_log_files(args.days)
         if result['success']:
             print(f"✅ {result['message']}")
@@ -1165,64 +1089,26 @@ def main():
             print(f"❌ {result['message']}")
 
 if __name__ == "__main__":
-    # Configure logging for standalone usage
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # Create dummy config.json for testing if it doesn't exist
+    if not os.path.exists("config.json"):
+        dummy_config_content = {
+            "database": {"path": "test_goldmind_ai.db"},
+            "logging": {"file": "goldmind_app.log"},
+            "server": {"host": "127.0.0.1", "port": 5000}
+        }
+        with open("config.json", "w") as f:
+            json.dump(dummy_config_content, f, indent=2)
+        print("Created dummy config.json for testing.")
 
-    # Define paths for standalone testing
-    test_db_dir = "data"
-    test_db_path = os.path.join(test_db_dir, "test_goldmind_ai.db")
-    test_log_dir = "logs"
-    test_log_file = os.path.join(test_log_dir, "goldmind_app.log")
-    test_backup_dir = "backups"
-    test_lstm_model_dir = "lstm_models" # Added for permission checks
-
-    # Clean up dummy files and directories from previous runs to ensure clean test environment
-    # Be careful with shutil.rmtree in production scenarios; this is for development/testing
-    print("Cleaning up previous test artifacts...")
-    if os.path.exists("config.json"): os.remove("config.json")
-    if os.path.exists(test_log_file): os.remove(test_log_file)
-    if os.path.exists(test_db_path): os.remove(test_db_path)
-    if os.path.exists(f"{test_db_path}-wal"): os.remove(f"{test_db_path}-wal")
-    if os.path.exists(f"{test_db_path}-shm"): os.remove(f"{test_db_path}-shm")
-    if os.path.exists(test_log_dir): shutil.rmtree(test_log_dir)
-    if os.path.exists(test_backup_dir): shutil.rmtree(test_backup_dir)
-    if os.path.exists(test_lstm_model_dir): shutil.rmtree(test_lstm_model_dir) # Clean model dir
-
-    # Re-create necessary dummy directories for the test run
-    os.makedirs(test_db_dir, exist_ok=True)
-    os.makedirs(test_log_dir, exist_ok=True)
-    os.makedirs(test_backup_dir, exist_ok=True)
-    os.makedirs(test_lstm_model_dir, exist_ok=True) # Ensure model dir exists
-
-    # Create dummy config.json for testing purposes (used by the default_cli_config)
-    dummy_config_content = {
-        "database": {"path": test_db_path},
-        "logging": {"file": os.path.basename(test_log_file), "max_log_size_mb": 50},
-        "server": {"host": "127.0.0.1", "port": 5000},
-        "system": {
-            "environment": "development",
-            "cpu_usage_threshold": 90,
-            "memory_usage_threshold": 90,
-            "min_available_memory_gb": 0.5,
-            "disk_free_gb_critical": 1.0,
-            "disk_free_gb_warning": 5.0,
-            "disk_used_percent_warning": 90.0,
-            "version": "1.0.0-beta"
-        },
-        "ml_models": {"model_storage_path": test_lstm_model_dir},
-        "analytics": {"api_error_rate_threshold_percent": 10, "api_usage_warning_percent": 90},
-    }
-    # Write this dummy config to "config.json"
-    with open("config.json", "w") as f:
-        json.dump(dummy_config_content, f, indent=2)
-    print("Created dummy config.json for testing.")
-
-    with open(test_log_file, "w") as f:
+    # Create dummy log and backup directories for testing
+    os.makedirs("logs", exist_ok=True)
+    os.makedirs("backups", exist_ok=True)
+    with open("goldmind_app.log", "w") as f:
         f.write("Test log entry.\n" * 10) # Create a small log file
 
-    # Create a dummy database file for testing DB operations (using the actual path from config)
-    if not os.path.exists(test_db_path):
-        conn = sqlite3.connect(test_db_path)
+    # Create a dummy database file for testing DB operations
+    if not os.path.exists("test_goldmind_ai.db"):
+        conn = sqlite3.connect("test_goldmind_ai.db")
         conn.close()
 
     try:
@@ -1231,14 +1117,24 @@ if __name__ == "__main__":
         logger.critical(f"System Utilities example failed: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        # Final cleanup after testing
-        print("\nPerforming final cleanup of test artifacts...")
-        if os.path.exists("config.json"): os.remove("config.json")
-        if os.path.exists(test_log_file): os.remove(test_log_file)
-        if os.path.exists(test_db_path): os.remove(test_db_path)
-        if os.path.exists(f"{test_db_path}-wal"): os.remove(f"{test_db_path}-wal")
-        if os.path.exists(f"{test_db_path}-shm"): os.remove(f"{test_db_path}-shm")
-        if os.path.exists(test_log_dir): shutil.rmtree(test_log_dir)
-        if os.path.exists(test_backup_dir): shutil.rmtree(test_backup_dir)
-        if os.path.exists(test_lstm_model_dir): shutil.rmtree(test_lstm_model_dir) # Clean model dir
-        print("Final cleanup complete.")
+        # Clean up dummy files and directories after testing
+        # Only remove if they were created by this script for standalone testing
+        if os.path.exists("config.json"):
+            # Check if it's the dummy one created by this script's __main__
+            with open("config.json", 'r') as f:
+                content = json.load(f)
+            if content.get("database", {}).get("path") == "test_goldmind_ai.db":
+                 os.remove("config.json")
+        if os.path.exists("goldmind_app.log"):
+            os.remove("goldmind_app.log")
+        if os.path.exists("test_goldmind_ai.db"):
+            os.remove("test_goldmind_ai.db")
+        if os.path.exists("test_goldmind_ai.db-wal"):
+            os.remove("test_goldmind_ai.db-wal")
+        if os.path.exists("test_goldmind_ai.db-shm"):
+            os.remove("test_goldmind_ai.db-shm")
+        if os.path.exists("logs"):
+            shutil.rmtree("logs")
+        if os.path.exists("backups"):
+            shutil.rmtree("backups")
+        print("\nCleaned up test files (if created by standalone run).")

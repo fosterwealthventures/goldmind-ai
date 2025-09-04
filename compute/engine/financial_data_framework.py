@@ -1,80 +1,206 @@
 """
-FinancialDataFramework.py
+financial_data_framework.py  — GoldMIND AI
+Unified, production‑oriented data access with:
+- Provider fallback chain (TwelveData → yfinance → Alpha Vantage → Metals API → FRED)
+- SQLite cache (WAL) + optional in‑memory TTL cache
+- Resilient aiohttp session management (single shared client)
+- Retries with exponential backoff on network errors
+- Clean OHLCV normalization to a consistent schema
+- Drop‑in compatibility with server.py and other managers
 
-A unified data access layer for GoldMIND AI.
-This module fetches and processes historical data for various financial instruments,
-with a focus on gold (XAU/USD), using a multi-provider fallback system and caching.
+Public surface:
+    FinancialDataFramework(api_keys: dict, config: dict|None)
+        .get_processed_data(ticker, days_back, interval="1day") -> pd.DataFrame
+        .get_realtime_price(ticker) -> float|None
+        .get_connection() -> sqlite3.Connection context manager
+        .close() -> close aiohttp session
 """
 
+from __future__ import annotations
+
 import asyncio
-import aiohttp
+import json
+import logging
+import os
 import sqlite3
+import time
+from contextlib import asynccontextmanager, contextmanager
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional, Tuple
+
+import aiohttp
 import pandas as pd
 import yfinance as yf
-import os
-import json
-from datetime import datetime, timedelta
-from contextlib import contextmanager
-import logging
-from pathlib import Path
-from typing import Optional, Dict, Any
 
+# --------------------------- Logging ---------------------------
+
+log = logging.getLogger("goldmind.fdf")
+if not log.handlers:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+
+
+# --------------------------- Helpers ---------------------------
+
+def _now() -> datetime:
+    return datetime.now()
+
+
+def _df_normalize(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalize columns to: Open, High, Low, Close, Volume, Price
+    Index must be DatetimeIndex in ascending order.
+    """
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    # Standardize column names first
+    renamed = {}
+    for c in df.columns:
+        lc = c.lower()
+        if lc in ("open",): renamed[c] = "Open"
+        elif lc in ("high",): renamed[c] = "High"
+        elif lc in ("low",): renamed[c] = "Low"
+        elif lc in ("close", "adj close", "adjusted close"): renamed[c] = "Close"
+        elif lc in ("volume",): renamed[c] = "Volume"
+        elif lc in ("price",): renamed[c] = "Price"
+
+    df = df.rename(columns=renamed)
+    # Fill derived columns
+    if "Price" not in df and "Close" in df:
+        df["Price"] = df["Close"]
+
+    # Ensure correct column order
+    cols = [c for c in ["Open", "High", "Low", "Close", "Volume", "Price"] if c in df.columns]
+    df = df[cols]
+
+    # Ensure datetime index ascending
+    if not isinstance(df.index, pd.DatetimeIndex):
+        # try to parse index
+        try:
+            df.index = pd.to_datetime(df.index, utc=False)
+        except Exception:
+            pass
+    df = df.sort_index()
+    return df
+
+
+def _interval_to_yf(interval: str) -> str:
+    # map "1day" → "1d", "1week" → "1wk", etc.
+    m = {
+        "1min": "1m", "5min": "5m", "15min": "15m", "30min": "30m", "60min": "60m",
+        "90min": "90m", "1hour": "60m",
+        "1day": "1d", "1wk": "1wk", "1week": "1wk", "1mo": "1mo", "1month": "1mo",
+    }
+    return m.get(interval, "1d")
+
+
+# --------------------------- In‑memory cache ---------------------------
+
+@dataclass
+class _MemEntry:
+    expires_at: float
+    df: Optional[pd.DataFrame] = None
+    value: Optional[float] = None
+
+
+class _TTLCache:
+    def __init__(self, ttl_sec: int = 300, max_items: int = 64) -> None:
+        self.ttl = ttl_sec
+        self.max = max_items
+        self._store: Dict[str, _MemEntry] = {}
+
+    def _evict_if_needed(self) -> None:
+        if len(self._store) <= self.max:
+            return
+        # evict oldest expiry
+        oldest_key = min(self._store, key=lambda k: self._store[k].expires_at)
+        self._store.pop(oldest_key, None)
+
+    def get_df(self, key: str) -> Optional[pd.DataFrame]:
+        e = self._store.get(key)
+        if not e or e.expires_at < time.time():
+            self._store.pop(key, None)
+            return None
+        return e.df
+
+    def put_df(self, key: str, df: pd.DataFrame, ttl: Optional[int] = None) -> None:
+        exp = time.time() + (ttl if ttl is not None else self.ttl)
+        self._store[key] = _MemEntry(expires_at=exp, df=df)
+        self._evict_if_needed()
+
+    def get_val(self, key: str) -> Optional[float]:
+        e = self._store.get(key)
+        if not e or e.expires_at < time.time():
+            self._store.pop(key, None)
+            return None
+        return e.value
+
+    def put_val(self, key: str, val: float, ttl: Optional[int] = None) -> None:
+        exp = time.time() + (ttl if ttl is not None else self.ttl)
+        self._store[key] = _MemEntry(expires_at=exp, value=val)
+        self._evict_if_needed()
+
+
+# --------------------------- Main class ---------------------------
 
 class FinancialDataFramework:
     """
-    A unified data access layer for GoldMIND AI.
-    Fetches and processes historical and real-time data for gold using multiple providers
-    with fallback logic and SQLite caching.
+    A unified data access layer for GoldMIND AI with multi‑provider fallback and caching.
     """
 
-    def __init__(self, api_keys: Dict[str, str], config: Optional[Dict[str, Any]] = None):
-        # Use an instance-specific logger
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.setLevel(logging.INFO)
-
-        # Merge provided config with any global config.json
-        global_cfg = {}
+    def __init__(self, api_keys: Dict[str, str] | None = None, config: Optional[Dict[str, Any]] = None) -> None:
+        # config merging
+        self.api_keys = api_keys or {}
         cfg_path = Path(__file__).parent / "config.json"
+        global_cfg: Dict[str, Any] = {}
         if cfg_path.exists():
             try:
                 global_cfg = json.loads(cfg_path.read_text())
-                self.logger.info(f"Loaded global config from {cfg_path}")
+                log.info("Loaded global config from %s", cfg_path)
             except Exception as e:
-                self.logger.warning(f"Failed to load global config: {e}")
-        self.config = {**global_cfg, **(config or {})}
-        self.api_keys = api_keys
+                log.warning("Failed to load global config: %s", e)
+        self.config: Dict[str, Any] = {**global_cfg, **(config or {})}
 
-        # Database/cache settings
+        # cache
+        self.mem_cache = _TTLCache(ttl_sec=int(self.config.get("cache", {}).get("ttl_sec", 300)))
         self.db_path = self.config.get("database", {}).get("path", "./data/financial_data_cache.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_database()
 
-        # Provider symbols
+        # provider config
         fd_cfg = self.config.get("financial_data_api", {})
         self.twelvedata_symbol = fd_cfg.get("twelvedata_gold_symbol", "XAU/USD")
         self.yfinance_symbol = fd_cfg.get("yfinance_symbol", "GC=F")
         self.alpha_vantage_symbol = fd_cfg.get("alpha_vantage_symbol", "XAU")
         self.fred_series_id = fd_cfg.get("fred_series_id", "GOLDAMGBD228NLBM")
-
-        # Base URLs
+        self.metals_api_base = fd_cfg.get("metals_api_base_url", "https://metals-api.com/api")
+        self.goldpricez_base = fd_cfg.get("goldpricez_base_url", "https://goldpricez.com/api")
         self.twelvedata_base = "https://api.twelvedata.com/time_series"
         self.twelvedata_price = "https://api.twelvedata.com/price"
         self.alpha_vantage_base = "https://www.alphavantage.co/query"
-        self.metals_api_base = fd_cfg.get("metals_api_base_url", "https://metals-api.com/api")
-        self.goldpricez_base = fd_cfg.get("goldpricez_base_url", "https://goldpricez.com/api")
-        
-        self.session = None
-        self.logger.info("✅ FinancialDataFramework initialized.")
 
-    async def _get_session(self):
-        if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
-        return self.session
+        # aiohttp client
+        self._session: Optional[aiohttp.ClientSession] = None
+        self._timeout = aiohttp.ClientTimeout(total=float(self.config.get("http", {}).get("timeout_total_sec", 12.0)))
+        self._retries = int(self.config.get("http", {}).get("retries", 2))
+        self._backoff = float(self.config.get("http", {}).get("backoff_sec", 0.5))
+        log.info("✅ FinancialDataFramework initialized with DB=%s", self.db_path)
 
-    async def close(self):
-        if self.session and not self.session.closed:
-            await self.session.close()
-            self.logger.info("AIOHTTP client session closed.")
+    # --------------------- Session management ---------------------
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            headers = {"User-Agent": "GoldMIND-FDF/1.0"}
+            self._session = aiohttp.ClientSession(timeout=self._timeout, headers=headers)
+        return self._session
+
+    async def close(self) -> None:
+        if self._session and not self._session.closed:
+            await self._session.close()
+            log.info("AIOHTTP client session closed.")
+
+    # --------------------- SQLite helpers ---------------------
 
     @contextmanager
     def get_connection(self):
@@ -82,15 +208,13 @@ class FinancialDataFramework:
         try:
             conn = sqlite3.connect(self.db_path)
             conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
             yield conn
-        except sqlite3.Error as e:
-            self.logger.error(f"DB connection error: {e}")
-            raise
         finally:
             if conn:
                 conn.close()
 
-    def _init_database(self):
+    def _init_database(self) -> None:
         with self.get_connection() as conn:
             conn.execute(
                 """
@@ -98,308 +222,333 @@ class FinancialDataFramework:
                     ticker TEXT NOT NULL,
                     datetime TEXT NOT NULL,
                     interval TEXT NOT NULL,
-                    open REAL,
-                    high REAL,
-                    low REAL,
-                    close REAL,
-                    volume INTEGER,
+                    open REAL, high REAL, low REAL, close REAL, volume INTEGER,
                     last_updated TIMESTAMP,
                     PRIMARY KEY (ticker, datetime, interval)
-                )"""
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_hist_ticker_interval ON historical_data_cache (ticker, interval)"
             )
             conn.commit()
 
+    # --------------------- Public APIs ---------------------
+
     async def get_processed_data(self, ticker: str, days_back: int, interval: str = "1day") -> pd.DataFrame:
         """
-        Public method: returns historical OHLCV+Price for the past `days_back` days.
-        Checks SQLite cache first, then falls back through providers.
+        Return OHLCV (+Price) DataFrame for the last `days_back` days at `interval`.
+        Order: cache → TwelveData → yfinance → Alpha Vantage → Metals API → FRED.
         """
-        end_dt = datetime.now()
-        start_dt = end_dt - timedelta(days=days_back)
+        end_dt = _now()
+        start_dt = end_dt - timedelta(days=int(days_back))
 
-        # 1) Cache
-        df = self._get_from_cache(ticker, start_dt, end_dt, interval)
+        # Memory cache
+        mem_key = f"hist:{ticker}:{interval}:{days_back}"
+        cached_df = self.mem_cache.get_df(mem_key)
+        if cached_df is not None:
+            return cached_df
+
+        # SQLite cache
+        df = self._get_from_cache_sqlite(ticker, start_dt, end_dt, interval)
         if df is not None:
+            self.mem_cache.put_df(mem_key, df)
             return df
 
-        # 2) Providers in order
+        # Providers
         providers = [
             self._fetch_twelvedata,
             self._fetch_yfinance,
             self._fetch_alpha_vantage,
             self._fetch_metals_api,
-            self._fetch_fred
+            self._fetch_fred,
         ]
         for fetch in providers:
             symbol = self._map_ticker_for_provider(fetch.__name__, ticker)
-            start_str, end_str = start_dt.strftime('%Y-%m-%d'), end_dt.strftime('%Y-%m-%d')
-            df = await fetch(symbol, start_str, end_str, interval)
+            s, e = start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d")
+            df = await fetch(symbol, s, e, interval)
             if df is not None and not df.empty:
-                self._cache_data(ticker, df, interval)
+                df = _df_normalize(df)
+                self._cache_to_sqlite(ticker, df, interval)
+                self.mem_cache.put_df(mem_key, df)
                 return df
 
-        self.logger.error(f"All providers failed for {ticker}")
+        log.error("All providers failed for %s", ticker)
         return pd.DataFrame()
 
     async def get_realtime_price(self, ticker: str) -> Optional[float]:
         """
-        Public method: returns latest price from first available real-time provider.
+        Return latest price from first available real-time provider.
         """
+        mem_key = f"rt:{ticker}"
+        cached = self.mem_cache.get_val(mem_key)
+        if cached is not None:
+            return cached
+
         providers = [
             self._fetch_latest_twelvedata,
             self._fetch_latest_yfinance,
             self._fetch_latest_alpha_vantage,
-            self._fetch_latest_goldpricez
+            self._fetch_latest_goldpricez,
         ]
         for fetch in providers:
             symbol = self._map_ticker_for_provider(fetch.__name__, ticker)
             price = await fetch(symbol)
             if price is not None:
-                return price
-        self.logger.error(f"All realtime providers failed for {ticker}")
+                self.mem_cache.put_val(mem_key, float(price), ttl=30)  # short TTL for spot price
+                return float(price)
+        log.error("All realtime providers failed for %s", ticker)
         return None
 
-    def _map_ticker_for_provider(self, func_name: str, ticker: str) -> str:
-        key = ticker.upper()
-        if "yfinance" in func_name and key == "XAU/USD":
-            return self.yfinance_symbol
-        if "twelvedata" in func_name and key == "XAU/USD":
-            return self.twelvedata_symbol
-        if "alpha_vantage" in func_name and key == "XAU/USD":
-            return self.alpha_vantage_symbol
-        if "fred" in func_name and key == "XAU/USD":
-            return self.fred_series_id
-        # metals API uses 'XAU'
-        if "metals_api" in func_name and key == "XAU/USD":
-            return "XAU"
-        return ticker
+    # --------------------- Cache (SQLite) ---------------------
 
-    def _get_from_cache(self, ticker: str, start: datetime, end: datetime, interval: str) -> Optional[pd.DataFrame]:
+    def _get_from_cache_sqlite(self, ticker: str, start: datetime, end: datetime, interval: str) -> Optional[pd.DataFrame]:
         with self.get_connection() as conn:
             df = pd.read_sql_query(
                 "SELECT datetime, open, high, low, close, volume FROM historical_data_cache "
                 "WHERE ticker=? AND interval=? AND datetime BETWEEN ? AND ? ORDER BY datetime",
-                conn, params=(ticker, interval, start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S')),
-                parse_dates=['datetime'], index_col='datetime'
+                conn,
+                params=(ticker, interval, start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")),
+                parse_dates=["datetime"],
+                index_col="datetime",
             )
         if df.empty:
-            self.logger.info("No data found in SQLite cache.")
             return None
-        df.rename(columns={'open':'Open','high':'High','low':'Low','close':'Close','volume':'Volume'}, inplace=True)
-        df['Price'] = df['Close']
+        df = _df_normalize(df)
         return df
 
-    def _cache_data(self, ticker: str, df: pd.DataFrame, interval: str):
-        records = []
+    def _cache_to_sqlite(self, ticker: str, df: pd.DataFrame, interval: str) -> None:
+        if df is None or df.empty:
+            return
+        payload = []
         for ts, row in df.iterrows():
-            records.append((
-                ticker,
-                ts.strftime('%Y-%m-%d %H:%M:%S'),
-                interval,
-                float(row['Open']) if pd.notna(row['Open']) else None,
-                float(row['High']) if pd.notna(row['High']) else None,
-                float(row['Low']) if pd.notna(row['Low']) else None,
-                float(row['Close']) if pd.notna(row['Close']) else None,
-                int(row['Volume']) if pd.notna(row['Volume']) else None,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ))
+            payload.append(
+                (
+                    ticker,
+                    ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    interval,
+                    float(row["Open"]) if "Open" in row and pd.notna(row["Open"]) else None,
+                    float(row["High"]) if "High" in row and pd.notna(row["High"]) else None,
+                    float(row["Low"]) if "Low" in row and pd.notna(row["Low"]) else None,
+                    float(row["Close"]) if "Close" in row and pd.notna(row["Close"]) else None,
+                    int(row["Volume"]) if "Volume" in row and pd.notna(row["Volume"]) else None,
+                    _now().strftime("%Y-%m-%d %H:%M:%S"),
+                )
+            )
         with self.get_connection() as conn:
             conn.executemany(
                 "INSERT OR REPLACE INTO historical_data_cache "
                 "(ticker, datetime, interval, open, high, low, close, volume, last_updated) "
-                "VALUES (?,?,?,?,?,?,?,?,?);", records
+                "VALUES (?,?,?,?,?,?,?,?,?)",
+                payload,
             )
             conn.commit()
-            self.logger.info(f"Cached {len(records)} rows for {ticker} at {interval} to SQLite.")
+        log.info("Cached %d rows for %s@%s", len(payload), ticker, interval)
 
-    # ---------------- Provider implementations ----------------
+    # --------------------- Provider plumbing ---------------------
 
-    async def _fetch_twelvedata(self, ticker, start, end, interval):
-        key = self.api_keys.get('twelvedata_api_key')
+    async def _request_json(self, url: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        GET JSON with retries/backoff.
+        """
+        last_err: Optional[Exception] = None
+        for attempt in range(self._retries + 1):
+            try:
+                session = await self._get_session()
+                async with session.get(url, params=params) as resp:
+                    resp.raise_for_status()
+                    return await resp.json()
+            except Exception as e:
+                last_err = e
+                await asyncio.sleep(self._backoff * (2 ** attempt))
+        log.error("Request failed for %s params=%s error=%s", url, params, last_err)
+        return None
+
+    def _map_ticker_for_provider(self, func_name: str, ticker: str) -> str:
+        t = ticker.upper()
+        if "yfinance" in func_name and t in ("XAU/USD", "XAUUSD"):
+            return self.yfinance_symbol
+        if "twelvedata" in func_name and t in ("XAU/USD", "XAUUSD"):
+            return self.twelvedata_symbol
+        if "alpha_vantage" in func_name and t in ("XAU/USD", "XAUUSD"):
+            return self.alpha_vantage_symbol
+        if "fred" in func_name and t in ("XAU/USD", "XAUUSD"):
+            return self.fred_series_id
+        if "metals_api" in func_name and t in ("XAU/USD", "XAUUSD"):
+            return "XAU"
+        return ticker
+
+    # ---- Historical providers ----
+
+    async def _fetch_twelvedata(self, ticker: str, start: str, end: str, interval: str) -> Optional[pd.DataFrame]:
+        key = self.api_keys.get("twelvedata_api_key")
         if not key:
-            self.logger.warning("Twelve Data API key not found.")
+            log.info("TwelveData: no API key; skipping.")
             return None
-        params = dict(symbol=ticker, interval=interval, start_date=start, end_date=end, apikey=key)
-        try:
-            session = await self._get_session()
-            resp = await session.get(self.twelvedata_base, params=params, timeout=10)
-            resp.raise_for_status()
-            data = await resp.json()
-            return self._process_twelve_data(data)
-        except Exception as e:
-            self.logger.error(f"TwelveData historical fetch error for {ticker}: {e}")
+        params = dict(symbol=ticker, interval=interval, start_date=start, end_date=end, apikey=key, order="ASC")
+        data = await self._request_json(self.twelvedata_base, params)
+        if not data or data.get("status") == "error" or "values" not in data:
             return None
+        df = pd.DataFrame(data["values"])
+        if df.empty:
+            return None
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        df = df.set_index("datetime")
+        for c in ("open", "high", "low", "close", "volume"):
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce")
+        df.dropna(subset=["open", "high", "low", "close"], inplace=True)
+        return _df_normalize(df)
 
-    async def _fetch_yfinance(self, ticker, start, end, interval):
-        yf_interval = interval.replace('day','d')
-        def sync():
+    async def _fetch_yfinance(self, ticker: str, start: str, end: str, interval: str) -> Optional[pd.DataFrame]:
+        yf_interval = _interval_to_yf(interval)
+
+        def sync_dl():
             df = yf.download(ticker, start=start, end=end, interval=yf_interval, progress=False)
-            if df.empty: return None
-            df.rename(columns=str.capitalize, inplace=True)
-            df['Price'] = df['Close']
-            return df[['Open','High','Low','Close','Volume','Price']]
-        try:
-            return await asyncio.to_thread(sync)
-        except Exception as e:
-            self.logger.error(f"YFinance historical fetch error for {ticker}: {e}")
-            return None
-
-    async def _fetch_alpha_vantage(self, ticker, start, end, interval):
-        key = self.api_keys.get('alpha_vantage_api_key')
-        if not key or interval!='1day':
-            self.logger.warning("Alpha Vantage API key not found or unsupported interval.")
-            return None
-        params = dict(function='TIME_SERIES_DAILY_ADJUSTED', symbol=ticker, outputsize='full', apikey=key)
-        try:
-            session = await self._get_session()
-            resp = await session.get(self.alpha_vantage_base, params=params, timeout=10)
-            resp.raise_for_status()
-            data = await resp.json()
-            return self._process_alpha_vantage(data)
-        except Exception as e:
-            self.logger.error(f"Alpha Vantage historical fetch error for {ticker}: {e}")
-            return None
-
-    async def _fetch_metals_api(self, ticker, start, end, interval):
-        key = self.api_keys.get('metalprice_api_key')
-        if not key or interval!='1day':
-            self.logger.warning("Metalprice API key not found or unsupported interval.")
-            return None
-        symbol = 'XAU' if ticker.upper()=='XAU/USD' else ticker
-        url = f"{self.metals_api_base}/timeseries"
-        params = dict(access_key=key, start_date=start, end_date=end, symbols=symbol, base='USD')
-        try:
-            session = await self._get_session()
-            resp = await session.get(url, params=params, timeout=10)
-            resp.raise_for_status()
-            data = await resp.json()
-            rates = data.get('rates', {})
-            if not rates:
-                self.logger.warning("Metals-API returned no rates.")
+            if df is None or df.empty:
                 return None
-            df = pd.DataFrame.from_dict(rates, orient='index')
-            df.index = pd.to_datetime(df.index)
-            df.rename(columns={symbol:'Close'}, inplace=True)
-            df['Open']=df['High']=df['Low']=df['Close']
-            df['Volume']=0; df['Price']=df['Close']
-            return df[['Open','High','Low','Close','Volume','Price']]
-        except Exception as e:
-            self.logger.error(f"Metals-API historical fetch error for {ticker}: {e}")
-            return None
+            # yfinance returns columns like Open, High, Low, Close, Adj Close, Volume
+            df = df.rename(columns=str.capitalize)
+            return _df_normalize(df)
 
-    async def _fetch_fred(self, ticker, start, end, interval):
-        key = self.api_keys.get('fred_api_key')
-        if not key or interval!='1day':
-            self.logger.warning("FRED API key not found or unsupported interval.")
-            return None
-        params = dict(series_id=self.fred_series_id, api_key=key, file_type='json', observation_start=start, observation_end=end)
         try:
-            session = await self._get_session()
-            resp = await session.get('https://api.stlouisfed.org/fred/series/observations', params=params, timeout=10)
-            resp.raise_for_status()
-            data = await resp.json()
-            return self._process_fred_data(data)
+            return await asyncio.to_thread(sync_dl)
         except Exception as e:
-            self.logger.error(f"FRED historical fetch error for {ticker}: {e}")
+            log.warning("yfinance error for %s: %s", ticker, e)
             return None
 
-    async def _fetch_latest_twelvedata(self, ticker):
-        key = self.api_keys.get('twelvedata_api_key')
-        if not key: return None
+    async def _fetch_alpha_vantage(self, ticker: str, start: str, end: str, interval: str) -> Optional[pd.DataFrame]:
+        key = self.api_keys.get("alpha_vantage_api_key")
+        if not key or interval != "1day":
+            return None
+        params = dict(function="TIME_SERIES_DAILY_ADJUSTED", symbol=ticker, outputsize="full", apikey=key)
+        data = await self._request_json(self.alpha_vantage_base, params)
+        ts = (data or {}).get("Time Series (Daily)")
+        if not ts:
+            return None
+        df = pd.DataFrame.from_dict(ts, orient="index")
+        df.index = pd.to_datetime(df.index)
+        df.sort_index(inplace=True)
+        rename = {
+            "1. open": "Open", "2. high": "High", "3. low": "Low", "4. close": "Close",
+            "6. volume": "Volume"
+        }
+        df = df.rename(columns=rename)
+        for c in ["Open", "High", "Low", "Close", "Volume"]:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce")
+        df.dropna(inplace=True)
+        return _df_normalize(df)
+
+    async def _fetch_metals_api(self, ticker: str, start: str, end: str, interval: str) -> Optional[pd.DataFrame]:
+        key = self.api_keys.get("metalprice_api_key")
+        if not key or interval != "1day":
+            return None
+        url = f"{self.metals_api_base}/timeseries"
+        symbol = "XAU" if ticker.upper() in ("XAU/USD", "XAUUSD") else ticker
+        params = dict(access_key=key, start_date=start, end_date=end, symbols=symbol, base="USD")
+        data = await self._request_json(url, params)
+        if not data or not data.get("rates"):
+            return None
+        df = pd.DataFrame.from_dict(data["rates"], orient="index")
+        df.index = pd.to_datetime(df.index)
+        df = df.rename(columns={symbol: "Close"})
+        df["Open"] = df["High"] = df["Low"] = df["Close"]
+        df["Volume"] = 0
+        return _df_normalize(df)
+
+    async def _fetch_fred(self, ticker: str, start: str, end: str, interval: str) -> Optional[pd.DataFrame]:
+        key = self.api_keys.get("fred_api_key")
+        if not key or interval != "1day":
+            return None
+        url = "https://api.stlouisfed.org/fred/series/observations"
+        params = dict(series_id=self.fred_series_id, api_key=key, file_type="json",
+                      observation_start=start, observation_end=end)
+        data = await self._request_json(url, params)
+        obs = (data or {}).get("observations")
+        if not obs:
+            return None
+        df = pd.DataFrame(obs)
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date")
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        df.dropna(inplace=True)
+        df = df.rename(columns={"value": "Close"})
+        df["Open"] = df["High"] = df["Low"] = df["Price"] = df["Close"]
+        df["Volume"] = 0
+        return _df_normalize(df)
+
+    # ---- Realtime providers ----
+
+    async def _fetch_latest_twelvedata(self, ticker: str) -> Optional[float]:
+        key = self.api_keys.get("twelvedata_api_key")
+        if not key:
+            return None
         params = dict(symbol=ticker, apikey=key)
+        data = await self._request_json(self.twelvedata_price, params)
         try:
-            session = await self._get_session()
-            resp = await session.get(self.twelvedata_price, params=params, timeout=5)
-            resp.raise_for_status()
-            data = await resp.json()
-            return float(data.get('price')) if 'price' in data else None
-        except Exception as e:
-            self.logger.error(f"TwelveData latest price error for {ticker}: {e}")
+            return float(data.get("price")) if data and "price" in data else None
+        except Exception:
             return None
 
-    async def _fetch_latest_yfinance(self, ticker):
-        def sync():
+    async def _fetch_latest_yfinance(self, ticker: str) -> Optional[float]:
+        def sync_price():
             t = yf.Ticker(ticker)
             hist = t.history(period="1d")
-            return float(hist["Close"].iloc[-1]) if not hist.empty else None
+            if hist is None or hist.empty:
+                return None
+            return float(hist["Close"].iloc[-1])
+
         try:
-            return await asyncio.to_thread(sync)
-        except Exception as e:
-            self.logger.error(f"YFinance latest price error for {ticker}: {e}")
+            return await asyncio.to_thread(sync_price)
+        except Exception:
             return None
 
-    async def _fetch_latest_alpha_vantage(self, ticker):
-        key = self.api_keys.get('alpha_vantage_api_key')
-        if not key: return None
-        av_ticker = "XAU" if ticker.upper() == "XAU/USD" else ticker
-        params = dict(function='CURRENCY_EXCHANGE_RATE', from_currency=av_ticker, to_currency='USD', apikey=key)
+    async def _fetch_latest_alpha_vantage(self, ticker: str) -> Optional[float]:
+        key = self.api_keys.get("alpha_vantage_api_key")
+        if not key:
+            return None
+        av_ticker = "XAU" if ticker.upper() in ("XAU/USD", "XAUUSD") else ticker
+        params = dict(function="CURRENCY_EXCHANGE_RATE", from_currency=av_ticker, to_currency="USD", apikey=key)
+        data = await self._request_json(self.alpha_vantage_base, params)
+        rate = (data or {}).get("Realtime Currency Exchange Rate", {})
         try:
-            session = await self._get_session()
-            resp = await session.get(self.alpha_vantage_base, params=params, timeout=5)
-            resp.raise_for_status()
-            data = await resp.json()
-            rate_info = data.get('Realtime Currency Exchange Rate', {})
-            return float(rate_info.get('5. Exchange Rate', 0)) if '5. Exchange Rate' in rate_info else None
-        except Exception as e:
-            self.logger.error(f"Alpha Vantage realtime error for {ticker}: {e}")
+            return float(rate.get("5. Exchange Rate")) if "5. Exchange Rate" in rate else None
+        except Exception:
             return None
 
-    async def _fetch_latest_goldpricez(self, ticker):
-        key = self.api_keys.get('goldpricez_api_key')
-        if not key: return None
-        gpz_ticker = "XAU" if ticker.upper() == "XAU/USD" else ticker
+    async def _fetch_latest_goldpricez(self, ticker: str) -> Optional[float]:
+        key = self.api_keys.get("goldpricez_api_key")
+        if not key:
+            return None
+        gpz_ticker = "XAU" if ticker.upper() in ("XAU/USD", "XAUUSD") else ticker
         url = f"{self.goldpricez_base}/rates/currency/usd/{key}"
+        data = await self._request_json(url, {})
         try:
-            session = await self._get_session()
-            resp = await session.get(url, timeout=5)
-            resp.raise_for_status()
-            data = await resp.json()
-            price = data.get(gpz_ticker.lower())
-            return float(price) if price is not None else None
-        except Exception as e:
-            self.logger.error(f"Goldpricez latest price error for {ticker}: {e}")
+            val = (data or {}).get(gpz_ticker.lower())
+            return float(val) if val is not None else None
+        except Exception:
             return None
 
-    # ---------------- Data processors ----------------
 
-    def _process_twelve_data(self, data):
-        if not data or data.get('status')=='error' or 'values' not in data: return None
-        df = pd.DataFrame(data['values']); df['datetime']=pd.to_datetime(df['datetime']); df.set_index('datetime', inplace=True)
-        for c in ['open','high','low','close']: df[c]=pd.to_numeric(df[c],errors='coerce')
-        df['volume']=pd.to_numeric(df.get('volume',0),errors='coerce').fillna(0)
-        df.dropna(subset=['open','high','low','close'], inplace=True)
-        df.rename(columns={'open':'Open','high':'High','low':'Low','close':'Close','volume':'Volume'}, inplace=True)
-        df['Price']=df['Close']; return df[['Open','High','Low','Close','Volume','Price']]
+# --------------------------- Standalone test ---------------------------
 
-    def _process_alpha_vantage(self, data):
-        ts = data.get('Time Series (Daily)');
-        if not ts: return None
-        df = pd.DataFrame.from_dict(ts,orient='index'); df.index=pd.to_datetime(df.index); df.sort_index(inplace=True)
-        df.rename(columns={'1. open':'Open','2. high':'High','3. low':'Low','4. close':'Close','6. volume':'Volume'}, inplace=True)
-        for c in ['Open','High','Low','Close','Volume']: df[c]=pd.to_numeric(df[c],errors='coerce')
-        df.dropna(inplace=True); df['Price']=df['Close']; return df[['Open','High','Low','Close','Volume','Price']]
-
-    def _process_fred_data(self, data):
-        obs = data.get('observations');
-        if not obs: return None
-        df = pd.DataFrame(obs); df['date']=pd.to_datetime(df['date']); df.set_index('date',inplace=True)
-        df['value']=pd.to_numeric(df['value'],errors='coerce'); df.dropna(inplace=True)
-        df.rename(columns={'value':'Close'}, inplace=True)
-        df['Open']=df['High']=df['Low']=df['Price']=df['Close']; df['Volume']=0
-        return df[['Open','High','Low','Close','Volume','Price']]
-
-# Sample standalone test
-if __name__ == '__main__':
+if __name__ == "__main__":
     async def _test():
         logging.basicConfig(level=logging.INFO)
         api_keys = {
-            'twelvedata_api_key':'', 'alpha_vantage_api_key':'', 'metalprice_api_key':'',
-            'fred_api_key':'', 'goldpricez_api_key':''
+            "twelvedata_api_key": "",
+            "alpha_vantage_api_key": "",
+            "metalprice_api_key": "",
+            "fred_api_key": "",
+            "goldpricez_api_key": "",
         }
         fdf = FinancialDataFramework(api_keys)
-        df = await fdf.get_processed_data('XAU/USD',90)
+        df = await fdf.get_processed_data("XAU/USD", 60)
+        print("--- df.head() ---")
         print(df.head())
-        price = await fdf.get_realtime_price('XAU/USD')
-        print('Price:',price)
-        await fdf.close() # Ensure the session is closed
+        price = await fdf.get_realtime_price("XAU/USD")
+        print("spot:", price)
+        await fdf.close()
+
     asyncio.run(_test())

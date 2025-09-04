@@ -1,57 +1,57 @@
-import { useEffect, useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-import { getHealth, getMarketStatus, getRecommendation, getBiasAlert, getPortfolio } from './api'
+// frontend/web/src/App.jsx
+import { useEffect, useState } from 'react';
+import BiasCard from './panels/BiasCard';
+import PredictCard from './panels/PredictCard';
+import { combinedHealth } from './api'; // make sure src/api.js exports combinedHealth()
+
+const dot = (ok) =>
+  <span className={`inline-block h-2 w-2 rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}`} />;
 
 export default function App() {
-  const [count, setCount] = useState(0)
-  const [health, setHealth] = useState(null)
-  const [data, setData] = useState({})
-  const [err, setErr] = useState(null)
+  const [apiUp, setApiUp] = useState(null);
+  const [computeUp, setComputeUp] = useState(null);
 
   useEffect(() => {
-    getHealth().then(setHealth).catch(e => setErr(String(e)))
-  }, [])
+    let mounted = true;
+    combinedHealth().then(({ api, compute }) => {
+      if (!mounted) return;
+      setApiUp(api.status === 'fulfilled' && api.value?.ok);
+      setComputeUp(compute.status === 'fulfilled' && compute.value?.ok);
+    }).catch(() => {
+      if (!mounted) return;
+      setApiUp(false);
+      setComputeUp(false);
+    });
+    return () => { mounted = false; };
+  }, []);
 
-  async function loadDashboard() {
-    const results = {}
-    const tasks = [
-      ['market',        getMarketStatus],
-      ['recommendation',() => getRecommendation('XAUUSD')],
-      ['bias',          getBiasAlert],
-      ['portfolio',     getPortfolio],
-    ]
-    for (const [key, fn] of tasks) {
-      try { results[key] = await fn() } 
-      catch (e) { results[key] = { ok:false, status:'ERR', body:String(e) } }
-    }
-    setData(results)
-  }
+  const symbol = 'XAU';      // use XAU as your canonical symbol
+  const timeframe = '1d';
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank"><img src={viteLogo} className="logo" alt="Vite logo" /></a>
-        <a href="https://react.dev" target="_blank"><img src={reactLogo} className="logo react" alt="React logo" /></a>
+    <div className="p-4 space-y-4">
+      {/* Health banner */}
+      <div className="rounded-xl p-3 bg-black/10 flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-2">
+          {dot(apiUp === null ? false : apiUp)} <span>API</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {dot(computeUp === null ? false : computeUp)} <span>Compute</span>
+        </div>
+        <div className="opacity-60 ml-auto">
+          Primary: /api • Fallback: /compute
+        </div>
       </div>
 
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount(c => c + 1)}>count is {count}</button>
-        <p>Edit <code>src/App.jsx</code> and save to test HMR</p>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="rounded-xl p-4 bg-black/10">
+          <BiasCard symbol={symbol} timeframe={timeframe} />
+        </div>
+        <div className="rounded-xl p-4 bg-black/10">
+          {/* rename prop from style -> view to avoid React's reserved "style" */}
+          <PredictCard symbol={symbol} timeframe={timeframe} view="day" />
+        </div>
       </div>
-
-      <div className="card" style={{marginTop:16}}>
-        <h2>API Connectivity</h2>
-        <p><strong>API Base:</strong> {import.meta.env.VITE_API_BASE || '/api'}</p>
-        <pre><strong>/health →</strong> {health ? JSON.stringify(health, null, 2) : '…'}</pre>
-        {err && <pre style={{color:'red'}}>{err}</pre>}
-        <button onClick={loadDashboard} style={{marginTop:8}}>Load dashboard data</button>
-        {Object.entries(data).map(([k,v]) => (
-          <pre key={k} style={{whiteSpace:'pre-wrap'}}><strong>{k}:</strong> {JSON.stringify(v,null,2)}</pre>
-        ))}
-      </div>
-    </>
-  )
+    </div>
+  );
 }

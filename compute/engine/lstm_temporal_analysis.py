@@ -13,6 +13,36 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+# --- simple ATR (no external TA libs) ---
+def _compute_atr(df, period: int = 14) -> float:
+    """
+    Expects columns: 'High', 'Low', 'Close'
+    Returns last ATR value (float). Falls back to a small epsilon if data is thin.
+    """
+    import numpy as np
+    if not all(c in df.columns for c in ("High","Low","Close")) or len(df) < period + 1:
+        # fallback so UI doesn't break
+        return max(1e-6, float(df["Close"].iloc[-1]) * 0.002)  # ~0.2% of price
+    highs = df["High"].to_numpy()
+    lows  = df["Low"].to_numpy()
+    closes = df["Close"].to_numpy()
+    prev_close = np.roll(closes, 1)
+    prev_close[0] = closes[0]
+
+    tr1 = highs - lows
+    tr2 = np.abs(highs - prev_close)
+    tr3 = np.abs(lows  - prev_close)
+    tr = np.maximum(tr1, np.maximum(tr2, tr3))
+
+    # Wilder's ATR (RMA)
+    import numpy as np
+    alpha = 1.0 / period
+    atr = tr[:period].mean()
+    for x in tr[period:]:
+        atr = (1 - alpha) * atr + alpha * x
+    return float(max(1e-6, atr))
+
+
 # Load global config.json if present
 _log = logging.getLogger(__name__)
 _global_cfg: Dict[str, Any] = {}
@@ -128,8 +158,9 @@ class LSTMTemporalAnalysis:
                 "position_size": 0.0, "risk_score": 0.0
             }
 
-        # Model prediction
+                # Model prediction
         raw = float(self.model.predict(arr)[0][0])
+
         if raw > 0.5:
             action = "BUY"
             conf = raw
@@ -141,15 +172,45 @@ class LSTMTemporalAnalysis:
             conf = 0.5 + abs(raw)
 
         pos_size = min(0.5, conf * 0.7)
-        risk = round(1.0 - conf, 4)
+        risk_score = round(1.0 - conf, 4)  # keep your original "risk" as a score
+
         self.logger.info(f"LSTM result for {symbol}: action={action}, confidence={conf:.2f}")
 
+        # --- ATR-based trade levels (entry/target/stop) ---
+        last_close = float(df["Close"].iloc[-1])
+        atr = _compute_atr(df, period=14)  # safe if High/Low missing (falls back)
+
+        atr_multiple_sl = 1.5   # stop = 1.5 * ATR
+        reward_multiple  = 2.0  # take-profit = 2R
+
+        if action == "BUY":
+            stop_loss = last_close - atr_multiple_sl * atr
+            target    = last_close + reward_multiple * (last_close - stop_loss)
+        elif action == "SELL":
+            stop_loss = last_close + atr_multiple_sl * atr
+            target    = last_close - reward_multiple * (stop_loss - last_close)
+        else:  # HOLD
+            stop_loss = None
+            target    = None
+
+        rr_multiple = None
+        if stop_loss is not None and target is not None:
+            risk_dist   = abs(last_close - stop_loss)
+            reward_dist = abs(target - last_close)
+            rr_multiple = round(reward_dist / risk_dist, 2) if risk_dist > 0 else None
+
         return {
-            "action": action,
-            "confidence": conf,
+            "action": action,                          # BUY | SELL | HOLD
+            "confidence": float(conf),                 # 0..1 or 0..100 (gateway normalizes)
             "reasoning": f"Temporal LSTM analysis indicates a {action} trend.",
-            "position_size": pos_size,
-            "risk_score": risk
+            "position_size": float(pos_size),
+            "risk_score": float(risk_score),
+
+            # NEW fields for the dashboard:
+            "entry": last_close,
+            "target": float(target) if target is not None else None,
+            "stop_loss": float(stop_loss) if stop_loss is not None else None,
+            "risk_reward": rr_multiple                 # e.g., 2.0 means 1:2 RR
         }
 
 # --- Standalone test harness ---

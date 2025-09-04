@@ -1,12 +1,14 @@
+# VCS & caches
+.git
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.venv/
+*.log
+
+# Local envs
 venv/
-.env
-node_modules/
-dist/
-build/
-.cache/
+.venv/
+
+# OS cruft
 .DS_Store

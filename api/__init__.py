@@ -1,1 +1,2 @@
-from .server import app, create_app
+# api/__init__.py
+# Intentionally empty to avoid side effects on import.

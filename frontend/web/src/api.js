@@ -1,28 +1,32 @@
 // src/api.js
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
-
-async function fetchFlex(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { Accept: 'application/json', ...(options.headers || {}) },
-    ...options,
-  });
-  let body;
-  try { body = await res.clone().json(); } catch { body = await res.text(); }
-  return { ok: res.ok, status: res.status, body };
+export async function combinedHealth() {
+  const [api, compute] = await Promise.allSettled([
+    fetchJSON(`${API_BASE}/health`),    // <-- backticks
+    fetchJSON(`${COMPUTE_BASE}/health`) // <-- backticks
+  ]);
+  return { api, compute };
 }
 
-// GET endpoints (adjust paths to match your API)
-export const getHealth         = () => fetchFlex('/health');
-export const getMarketStatus   = () => fetchFlex('/market/status');
-export const getRecommendation = (symbol = 'XAUUSD') =>
-  fetchFlex(`/recommendations?symbol=${encodeURIComponent(symbol)}`);
-export const getBiasAlert      = () => fetchFlex('/bias/alert');
-export const getPortfolio      = () => fetchFlex('/portfolio/overview');
-
-// Example POST helper (if/when you need it):
-export const postJson = (path, payload) =>
-  fetchFlex(path, {
+export async function predict(payload) {
+  const init = {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: JSON.stringify(payload),
-  });
+  };
+
+  // API first
+  const r = await fetchJSON(`${API_BASE}/predict`, init);      // <-- backticks
+  if (r.ok) return r.body;
+  if (r.status && r.status < 500 && r.status !== 0) {
+    throw new Error(`API ${r.status}: ${JSON.stringify(r.body)}`);
+  }
+
+  // Fallback to Compute
+  const f = await fetchJSON(`${COMPUTE_BASE}/predict`, init);  // <-- backticks
+  if (f.ok) return f.body;
+
+  throw new Error(
+    `Both API and Compute failed. API ${r.status}: ${JSON.stringify(r.body)} | ` +
+    `Compute ${f.status}: ${JSON.stringify(f.body)}`
+  );
+}
