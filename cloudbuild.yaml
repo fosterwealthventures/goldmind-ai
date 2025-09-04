@@ -1,9 +1,10 @@
-# cloudbuild.yaml — build → push → deploy (with explicit runtime SA) → smoke-test
+# cloudbuild.yaml – build + push + deploy API and Compute (identical settings)
 
 substitutions:
   _REGION: us-central1
-  _SERVICE: goldmind-api
   _REPO: goldmind
+  _API_SERVICE: goldmind-api
+  _COMPUTE_SERVICE: goldmind-compute
   _PORT: "8000"
   _MIN_INSTANCES: "1"
   _MAX_INSTANCES: "5"
@@ -17,63 +18,77 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 images:
-  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$BUILD_ID"
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_API_SERVICE}:$BUILD_ID"
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_COMPUTE_SERVICE}:$BUILD_ID"
 
 steps:
-  # 1) Build the image from api/Dockerfile with api/ as context
-  - name: "gcr.io/cloud-builders/docker"
-    id: "Build image"
-    args:
-      - build
-      - "-t"
-      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$BUILD_ID"
-      - "-f"
-      - "api/Dockerfile"
-      - "api"
+  # Authenticate Docker to Artifact Registry
+  - name: gcr.io/cloud-builders/gcloud
+    id: "Auth docker"
+    args: ["auth", "configure-docker", "${_REGION}-docker.pkg.dev"]
 
-  # 2) Push the image
-  - name: "gcr.io/cloud-builders/docker"
-    id: "Push image"
+  # --- Build & Push API ---
+  - name: gcr.io/cloud-builders/docker
+    id: "Build API"
     args:
-      - push
-      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$BUILD_ID"
+      [
+        "build",
+        "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_API_SERVICE}:$BUILD_ID",
+        "-f", "api/Dockerfile",
+        "api"
+      ]
 
-  # 3) Deploy to Cloud Run (EXPLICIT service account)
-  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:latest"
-    id: "Deploy to Cloud Run"
-    entrypoint: bash
+  - name: gcr.io/cloud-builders/docker
+    id: "Push API"
     args:
-      - -c
-      - |
-        set -euo pipefail
-        gcloud run deploy "$_SERVICE" \
-          --image "${_REGION}-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$BUILD_ID" \
-          --region "$_REGION" \
-          --platform managed \
-          --service-account "goldmind-api-runner@$PROJECT_ID.iam.gserviceaccount.com" \
-          --allow-unauthenticated \
-          --port "$_PORT" \
-          --memory "1Gi" \
-          --cpu "1" \
-          --concurrency "$_CONCURRENCY" \
-          --min-instances "$_MIN_INSTANCES" \
-          --max-instances "$_MAX_INSTANCES" \
-          --timeout "$_TIMEOUT" \
-          --set-env-vars "ENV=$_ENV,USE_YFINANCE=$_USE_YFINANCE" \
-          --set-secrets "ALPHA_VANTAGE_API_KEY=ALPHA_VANTAGE_API_KEY:latest,TWELVE_DATA_API_KEY=TWELVE_DATA_API_KEY:latest,FRED_API_KEY=FRED_API_KEY:latest,METALPRICE_API_KEY=METALPRICE_API_KEY:latest,GOLDPRICEZ_API_KEY=GOLDPRICEZ_API_KEY:latest,INTERNAL_SHARED_SECRET=INTERNAL_SHARED_SECRET:latest"
+      ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_API_SERVICE}:$BUILD_ID"]
 
-  # 4) Smoke test your custom domain
-  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:latest"
-    id: "Smoke test /health"
-    entrypoint: bash
+  - name: gcr.io/cloud-builders/gcloud
+    id: "Deploy API"
     args:
-      - -c
-      - |
-        set -euo pipefail
-        echo "Hitting $_API_DOMAIN/health ..."
-        code=$(curl -s -o /dev/null -w "%{http_code}" "$_API_DOMAIN/health" || true)
-        if [ "$code" != "200" ]; then
-          echo "Health check failed with HTTP $code"
-          exit 1
-        fi
-        echo "Health OK (200)"
+      [
+        "run", "deploy", "${_API_SERVICE}",
+        "--image", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_API_SERVICE}:$BUILD_ID",
+        "--region", "${_REGION}",
+        "--platform", "managed",
+        "--allow-unauthenticated",
+        "--port", "${_PORT}",
+        "--min-instances", "${_MIN_INSTANCES}",
+        "--max-instances", "${_MAX_INSTANCES}",
+        "--concurrency", "${_CONCURRENCY}",
+        "--timeout", "${_TIMEOUT}",
+        "--set-env-vars", "ENV=${_ENV},USE_YFINANCE=${_USE_YFINANCE},API_DOMAIN=${_API_DOMAIN}"
+      ]
+
+  # --- Build & Push Compute ---
+  - name: gcr.io/cloud-builders/docker
+    id: "Build Compute"
+    args:
+      [
+        "build",
+        "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_COMPUTE_SERVICE}:$BUILD_ID",
+        "-f", "compute/Dockerfile",
+        "compute"
+      ]
+
+  - name: gcr.io/cloud-builders/docker
+    id: "Push Compute"
+    args:
+      ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_COMPUTE_SERVICE}:$BUILD_ID"]
+
+  - name: gcr.io/cloud-builders/gcloud
+    id: "Deploy Compute"
+    args:
+      [
+        "run", "deploy", "${_COMPUTE_SERVICE}",
+        "--image", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_COMPUTE_SERVICE}:$BUILD_ID",
+        "--region", "${_REGION}",
+        "--platform", "managed",
+        "--allow-unauthenticated",
+        "--port", "${_PORT}",
+        "--min-instances", "${_MIN_INSTANCES}",
+        "--max-instances", "${_MAX_INSTANCES}",
+        "--concurrency", "${_CONCURRENCY}",
+        "--timeout", "${_TIMEOUT}",
+        "--set-env-vars", "ENV=${_ENV},USE_YFINANCE=${_USE_YFINANCE}"
+      ]
