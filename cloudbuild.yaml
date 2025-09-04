@@ -21,6 +21,21 @@ options:
 # Build & push both images (API from repo root, Compute from ./compute)
 # ------------------------------------------------------------
 steps:
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  id: "DEBUG: print substitutions"
+  args:
+    - bash
+    - -c
+    - |
+      set -euo pipefail
+      echo "_REGION=${_REGION}"
+      echo "_AR_REPO=${_AR_REPO}"
+      echo "_SERVICE_API=${_SERVICE_API}"
+      echo "_SERVICE_COMPUTE=${_SERVICE_COMPUTE}"
+      echo "_API_DOMAIN=${_API_DOMAIN}"
+      echo "_ENV=${_ENV}"
+      echo "_USE_YFINANCE=${_USE_YFINANCE}"
+
   - name: gcr.io/cloud-builders/docker
     id: "Build API image"
     args:
