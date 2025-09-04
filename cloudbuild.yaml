@@ -9,74 +9,25 @@ substitutions:
   _API_DOMAIN: "https://api.fwvgoldmindai.com"
   _ENV: "prod"
   _USE_YFINANCE: "true"
-  # Optional runtime service accounts (leave blank to skip)
-  _RUNTIME_SA_API: ""
-  _RUNTIME_SA_COMPUTE: ""
 
 options:
   logging: CLOUD_LOGGING_ONLY
   substitution_option: ALLOW_LOOSE
 
 steps:
-# ------------------------------------------------------------
-# Build & push both images (API from repo root, Compute from ./compute)
-# ------------------------------------------------------------
-- name: gcr.io/cloud-builders/docker
-  id: "Build API image"
-  args:
-    - build
-    - -t
-    - us-central1-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA
-    - .
+  # Build API image from ./api using api/Dockerfile
+  - name: gcr.io/cloud-builders/docker
+    id: "Build API image"
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA
+      - -f
+      - ./api/Dockerfile
+      - ./api
 
-- name: gcr.io/cloud-builders/docker
-  id: "Build Compute image"
-  args:
-    - build
-    - -t
-    - us-central1-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA
-    - ./compute
-
-# Push images to Artifact Registry
-- name: gcr.io/cloud-builders/docker
-  id: "Push API image"
-  args:
-    - push
-    - us-central1-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA
-
-- name: gcr.io/cloud-builders/docker
-  id: "Push Compute image"
-  args:
-    - push
-    - us-central1-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA
-
-# ------------------------------------------------------------
-# Deploy to Cloud Run (Gen2)
-# ------------------------------------------------------------
-- name: gcr.io/google.com/cloudsdktool/cloud-sdk
-  id: "Deploy API"
-  entrypoint: gcloud
-  args:
-    - run
-    - deploy
-    - ${_SERVICE_API}
-    - --image=us-central1-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA
-    - --region=${_REGION}
-    - --platform=managed
-    - --allow-unauthenticated
-    - --project=$PROJECT_ID
-    - --quiet
-
-- name: gcr.io/google.com/cloudsdktool/cloud-sdk
-  id: "Deploy Compute"
-  entrypoint: gcloud
-  args:
-    - run
-    - deploy
-    - ${_SERVICE_COMPUTE}
-    - --image=us-central1-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA
-    - --region=${_REGION}
-    - --platform=managed
-    - --allow-unauthenticated
-    - --project=$PROJECT_ID
-    - --quiet
+  # Build Compute image from ./compute using compute/Dockerfile
+  - name: gcr.io/cloud-builders/docker
+    id: "Build Compute image"
+    args:
+      - build
