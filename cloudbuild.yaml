@@ -1,5 +1,4 @@
-# Cloud Build: build + push + deploy API & Compute (Gen2)
-# Repo root: /cloudbuild.yaml
+# CI/CD: Build + Push + Deploy API & Compute (Cloud Run Gen2)
 
 substitutions:
   _REGION: "us-central1"
@@ -15,9 +14,9 @@ options:
   substitution_option: ALLOW_LOOSE
 
 steps:
-  # Build API image from ./api using api/Dockerfile (capital D)
+  # --- Build ---
   - name: gcr.io/cloud-builders/docker
-    id: "Build API image"
+    id: Build API image
     args:
       - build
       - -t
@@ -26,9 +25,8 @@ steps:
       - ./api/Dockerfile
       - ./api
 
-  # Build Compute image from ./compute using compute/Dockerfile
   - name: gcr.io/cloud-builders/docker
-    id: "Build Compute image"
+    id: Build Compute image
     args:
       - build
       - -t
@@ -37,23 +35,18 @@ steps:
       - ./compute/Dockerfile
       - ./compute
 
-  # Push API image
+  # --- Push ---
   - name: gcr.io/cloud-builders/docker
-    id: "Push API image"
-    args:
-      - push
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA
+    id: Push API image
+    args: [ "push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$COMMIT_SHA" ]
 
-  # Push Compute image
   - name: gcr.io/cloud-builders/docker
-    id: "Push Compute image"
-    args:
-      - push
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA
+    id: Push Compute image
+    args: [ "push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA" ]
 
-  # Deploy API to Cloud Run (Gen2)
+  # --- Deploy (Cloud Run Gen2) ---
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: "Deploy API"
+    id: Deploy API
     entrypoint: gcloud
     args:
       - run
@@ -66,9 +59,8 @@ steps:
       - --project=$PROJECT_ID
       - --quiet
 
-  # Deploy Compute to Cloud Run (Gen2)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: "Deploy Compute"
+    id: Deploy Compute
     entrypoint: gcloud
     args:
       - run
@@ -79,3 +71,13 @@ steps:
       - --platform=managed
       - --project=$PROJECT_ID
       - --quiet
+
+# Optional: add a simple smoke test after deploy (uncomment + adjust URL/headers)
+#  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+#    id: Smoke test
+#    entrypoint: bash
+#    args:
+#      - -lc
+#      - |
+#        set -euo pipefail
+#        curl -fsSL https://api.fwvgoldmindai.com/health
