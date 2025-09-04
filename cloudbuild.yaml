@@ -1,119 +1,132 @@
-# Cloud Build: build + push + deploy API & Compute
-# Triggers on merges/pushes to main (configure in the GitHub trigger)
+# Cloud Build: build + push + deploy API & Compute (Gen2)
+# Place at repo root: /cloudbuild.yaml
+
 substitutions:
-  # Change these in trigger UI if needed
   _REGION: "us-central1"
-  _AR_REPO: "goldmind"                 # Artifact Registry repo name
+  _AR_REPO: "goldmind"
   _SERVICE_API: "goldmind-api"
   _SERVICE_COMPUTE: "goldmind-compute"
   _API_DOMAIN: "https://api.fwvgoldmindai.com"
   _ENV: "prod"
   _USE_YFINANCE: "true"
-  # Optional: runtime service accounts (must exist)
-  _RUNTIME_SA_API: ""                  # e.g. goldmind-api@PROJECT_ID.iam.gserviceaccount.com
-  _RUNTIME_SA_COMPUTE: ""              # e.g. goldmind-compute@PROJECT_ID.iam.gserviceaccount.com
+  # Optional runtime service accounts (leave blank to skip)
+  _RUNTIME_SA_API: ""
+  _RUNTIME_SA_COMPUTE: ""
+
 options:
   logging: CLOUD_LOGGING_ONLY
   substitution_option: ALLOW_LOOSE
 
+# ------------------------------------------------------------
+# Build & push both images (API from repo root, Compute from ./compute)
+# ------------------------------------------------------------
 steps:
-# --- Build images ---
-- name: gcr.io/cloud-builders/docker
-  id: "Build API image"
-  args:
-    - build
-    - "-t"
-    - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$SHORT_SHA"
-    - "-t"
-    - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:latest"
-    - "."
-- name: gcr.io/cloud-builders/docker
-  id: "Build Compute image"
-  args:
-    - build
-    - "-t"
-    - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"
-    - "-t"
-    - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:latest"
-    - "./compute"
+  - name: gcr.io/cloud-builders/docker
+    id: "Build API image"
+    args:
+      - build
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$SHORT_SHA"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:latest"
+      - "."
 
-# --- Push images ---
-- name: gcr.io/cloud-builders/docker
-  id: "Push API image"
-  args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$SHORT_SHA"]
-- name: gcr.io/cloud-builders/docker
-  id: "Push API :latest"
-  args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:latest"]
+  - name: gcr.io/cloud-builders/docker
+    id: "Build Compute image"
+    args:
+      - build
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:latest"
+      - "./compute"
 
-- name: gcr.io/cloud-builders/docker
-  id: "Push Compute image"
-  args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"]
-- name: gcr.io/cloud-builders/docker
-  id: "Push Compute :latest"
-  args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:latest"]
+  - name: gcr.io/cloud-builders/docker
+    id: "Push API :short_sha"
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$SHORT_SHA"]
 
-# --- Deploy API ---
-- name: gcr.io/google.com/cloudsdktool/cloud-sdk
-  id: "Deploy API to Cloud Run"
-  entrypoint: bash
-  script: |
-    set -euo pipefail
-    IMG="${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$SHORT_SHA"
+  - name: gcr.io/cloud-builders/docker
+    id: "Push API :latest"
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:latest"]
 
-    # Build common flags
-    FLAGS=(--platform=managed --region="${_REGION}" --port=8000 --timeout=900
-           --concurrency=80 --min-instances=1 --max-instances=5
-           --execution-environment=gen2 --cpu-boost)
+  - name: gcr.io/cloud-builders/docker
+    id: "Push Compute :short_sha"
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"]
 
-    # Optional service account
-    if [[ -n "${_RUNTIME_SA_API}" ]]; then
-      FLAGS+=(--service-account="${_RUNTIME_SA_API}")
-    fi
+  - name: gcr.io/cloud-builders/docker
+    id: "Push Compute :latest"
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:latest"]
 
-    gcloud run deploy "${_SERVICE_API}" \
-      --image="${IMG}" \
-      --allow-unauthenticated \
-      --set-env-vars="ENV=${_ENV},USE_YFINANCE=${_USE_YFINANCE},API_DOMAIN=${_API_DOMAIN}" \
-      "${FLAGS[@]}"
+# ------------------------------------------------------------
+# Deploy API (public) & Compute (private)
+# ------------------------------------------------------------
 
-    # Secrets (uncomment if you have Secret Manager secrets created)
-    # --set-secrets=INTERNAL_SHARED_SECRET=projects/$PROJECT_NUMBER/secrets/INTERNAL_SHARED_SECRET:latest
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: "Deploy API to Cloud Run"
+    args:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        IMG="${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$SHORT_SHA"
 
-# --- Deploy Compute ---
-- name: gcr.io/google.com/cloudsdktool/cloud-sdk
-  id: "Deploy Compute to Cloud Run"
-  entrypoint: bash
-  script: |
-    set -euo pipefail
-    IMG="${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"
+        FLAGS=(--platform=managed --region="${_REGION}" --port=8000 --timeout=900
+               --concurrency=80 --min-instances=1 --max-instances=5
+               --execution-environment=gen2 --cpu-boost)
 
-    FLAGS=(--platform=managed --region="${_REGION}" --port=8000 --timeout=900
-           --concurrency=80 --min-instances=1 --max-instances=5
-           --execution-environment=gen2 --cpu-boost)
+        if [[ -n "${_RUNTIME_SA_API}" ]]; then
+          FLAGS+=(--service-account="${_RUNTIME_SA_API}")
+        fi
 
-    if [[ -n "${_RUNTIME_SA_COMPUTE}" ]]; then
-      FLAGS+=(--service-account="${_RUNTIME_SA_COMPUTE}")
-    fi
+        gcloud run deploy "${_SERVICE_API}" \
+          --image="${IMG}" \
+          --allow-unauthenticated \
+          --set-env-vars="ENV=${_ENV},USE_YFINANCE=${_USE_YFINANCE},API_DOMAIN=${_API_DOMAIN}" \
+          "${FLAGS[@]}"
 
-    # Keep compute private unless you truly want it public
-    gcloud run deploy "${_SERVICE_COMPUTE}" \
-      --image="${IMG}" \
-      --no-allow-unauthenticated \
-      --set-env-vars="ENV=${_ENV}" \
-      "${FLAGS[@]}"
+        # To use Secret Manager (example), add:
+        # --set-secrets=INTERNAL_SHARED_SECRET=projects/$PROJECT_NUMBER/secrets/INTERNAL_SHARED_SECRET:latest
 
-# --- Smoke test: API /health ---
-- name: curlimages/curl
-  id: "Smoke test /health"
-  entrypoint: sh
-  script: |
-    set -e
-    API_URL="$(gcloud run services describe ${_SERVICE_API} --region ${_REGION} --format='value(status.url)')"
-    echo "Testing: ${API_URL}/health"
-    curl -fsS "${API_URL}/health" | tee /workspace/health.json
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: "Deploy Compute to Cloud Run"
+    args:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        IMG="${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"
+
+        FLAGS=(--platform=managed --region="${_REGION}" --port=8000 --timeout=900
+               --concurrency=80 --min-instances=1 --max-instances=5
+               --execution-environment=gen2 --cpu-boost)
+
+        if [[ -n "${_RUNTIME_SA_COMPUTE}" ]]; then
+          FLAGS+=(--service-account="${_RUNTIME_SA_COMPUTE}")
+        fi
+
+        # Keep compute private by default
+        gcloud run deploy "${_SERVICE_COMPUTE}" \
+          --image="${IMG}" \
+          --no-allow-unauthenticated \
+          --set-env-vars="ENV=${_ENV}" \
+          "${FLAGS[@]}"
+
+# ------------------------------------------------------------
+# Smoke test the public API /health
+# ------------------------------------------------------------
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: "Smoke test /health"
+    args:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        API_URL="$(gcloud run services describe ${_SERVICE_API} --region ${_REGION} --format='value(status.url)')"
+        echo "Testing: ${API_URL}/health"
+        curl -fsS "${API_URL}/health" | tee /workspace/health.json
 
 images:
-- "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$SHORT_SHA"
-- "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:latest"
-- "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"
-- "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:latest"
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:$SHORT_SHA"
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_API}:latest"
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:latest"
