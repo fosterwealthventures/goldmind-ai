@@ -1,7 +1,7 @@
 # CI/CD: Build + Push + Deploy API & Compute (Cloud Run Gen2)
 # - Structured logging (deploy-smoke, deploy-summary)
-# - Parallel smoke tests (12 x 5s = 60s grace)
-# - Final step prints both service URLs
+# - Parallel smoke tests with 60s grace (12 x 5s)
+# - Final summary prints both service URLs
 
 substitutions:
   _REGION: "us-central1"
@@ -17,9 +17,7 @@ options:
   substitution_option: ALLOW_LOOSE
 
 steps:
-  # -------------------------
-  # Build
-  # -------------------------
+  # ---- Build ---------------------------------------------------------------
   - name: "gcr.io/cloud-builders/docker"
     id: "Build API image"
     args:
@@ -40,9 +38,7 @@ steps:
       - "./compute/Dockerfile"
       - "./compute"
 
-  # -------------------------
-  # Push
-  # -------------------------
+  # ---- Push ----------------------------------------------------------------
   - name: "gcr.io/cloud-builders/docker"
     id: "Push API image"
     args:
@@ -55,9 +51,7 @@ steps:
       - "push"
       - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_COMPUTE}:$COMMIT_SHA"
 
-  # -------------------------
-  # Deploy
-  # -------------------------
+  # ---- Deploy --------------------------------------------------------------
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     id: "Deploy API"
     entrypoint: "gcloud"
@@ -85,9 +79,7 @@ steps:
       - "--project=$PROJECT_ID"
       - "--quiet"
 
-  # -------------------------
-  # Smoke test: API (parallel)
-  # -------------------------
+  # ---- Smoke test: API (runs after Deploy API) -----------------------------
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     id: "Smoke Test API Health"
     waitFor: ["Deploy API"]
@@ -105,24 +97,34 @@ steps:
           body="${resp% HTTP_STATUS:*}"
           body_b64="$(printf '%s' "$body" | base64 | tr -d '\n')"
           if [[ "$status" == "200" ]]; then
-            gcloud logging write deploy-smoke \
-              "{\"service\":\"${_SERVICE_API}\",\"url\":\"${api_url}\",\"status\":${status},\"ok\":true,\"ts\":\"${ts}\",\"body_b64\":\"${body_b64}\"}" \
-              --payload-type=json --severity=INFO
+            json="$(cat <<'JSON'
+{
+  "service": "__SVC__",
+  "url": "__URL__",
+  "status": 200,
+  "ok": true,
+  "ts": "__TS__",
+  "body_b64": "__BODY__"
+}
+JSON
+)"
+            json="${json/__SVC__/${_SERVICE_API}}"
+            json="${json/__URL__/${api_url}}"
+            json="${json/__TS__/${ts}}"
+            json="${json/__BODY__/${body_b64}}"
+            printf '%s' "$json" | gcloud logging write deploy-smoke -q --payload-type=json --severity=INFO
             echo "API health OK (200)."
             exit 0
           fi
           echo "Attempt ${i}/12: API not ready (status=${status}). Retrying in 5s..."
           sleep 5
         done
-        gcloud logging write deploy-smoke \
-          "{\"service\":\"${_SERVICE_API}\",\"url\":\"${api_url}\",\"status\":\"fail\",\"ok\":false,\"ts\":\"${ts}\"}" \
-          --payload-type=json --severity=ERROR
+        printf '{"service":"%s","url":"%s","status":"fail","ok":false,"ts":"%s"}' "${_SERVICE_API}" "${api_url}" "$(date -Iseconds)" \
+        | gcloud logging write deploy-smoke -q --payload-type=json --severity=ERROR
         echo "API health FAILED after grace period."
         exit 1
 
-  # -------------------------
-  # Smoke test: Compute (parallel)
-  # -------------------------
+  # ---- Smoke test: Compute (runs after Deploy Compute) ---------------------
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     id: "Smoke Test Compute Health"
     waitFor: ["Deploy Compute"]
@@ -141,24 +143,34 @@ steps:
           body="${resp% HTTP_STATUS:*}"
           body_b64="$(printf '%s' "$body" | base64 | tr -d '\n')"
           if [[ "$status" == "200" ]]; then
-            gcloud logging write deploy-smoke \
-              "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"${health_url}\",\"status\":${status},\"ok\":true,\"ts\":\"${ts}\",\"body_b64\":\"${body_b64}\"}" \
-              --payload-type=json --severity=INFO
+            json="$(cat <<'JSON'
+{
+  "service": "__SVC__",
+  "url": "__URL__",
+  "status": 200,
+  "ok": true,
+  "ts": "__TS__",
+  "body_b64": "__BODY__"
+}
+JSON
+)"
+            json="${json/__SVC__/${_SERVICE_COMPUTE}}"
+            json="${json/__URL__/${health_url}}"
+            json="${json/__TS__/${ts}}"
+            json="${json/__BODY__/${body_b64}}"
+            printf '%s' "$json" | gcloud logging write deploy-smoke -q --payload-type=json --severity=INFO
             echo "Compute health OK (200)."
             exit 0
           fi
           echo "Attempt ${i}/12: Compute not ready (status=${status}). Retrying in 5s..."
           sleep 5
         done
-        gcloud logging write deploy-smoke \
-          "{\"service\":\"${_SERVICE_COMPUTE}\",\"url\":\"${health_url}\",\"status\":\"fail\",\"ok\":false,\"ts\":\"${ts}\"}" \
-          --payload-type=json --severity=ERROR
+        printf '{"service":"%s","url":"%s","status":"fail","ok":false,"ts":"%s"}' "${_SERVICE_COMPUTE}" "${health_url}" "$(date -Iseconds)" \
+        | gcloud logging write deploy-smoke -q --payload-type=json --severity=ERROR
         echo "Compute health FAILED after grace period."
         exit 1
 
-  # -------------------------
-  # Final summary
-  # -------------------------
+  # ---- Final summary (runs after both smokes) ------------------------------
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     id: "Summary: Print Service URLs"
     waitFor:
@@ -174,6 +186,5 @@ steps:
         echo "=== Deployment Summary ==="
         echo "API URL:     ${api_url}"
         echo "Compute URL: ${compute_url}"
-        gcloud logging write deploy-summary \
-          "{\"api\":\"${api_url}\",\"compute\":\"${compute_url}\",\"env\":\"${_ENV}\",\"ts\":\"$(date -Iseconds)\"}" \
-          --payload-type=json --severity=INFO
+        printf '{"api":"%s","compute":"%s","env":"%s","ts":"%s"}' "${api_url}" "${compute_url}" "${_ENV}" "$(date -Iseconds)" \
+        | gcloud logging write deploy-summary -q --payload-type=json --severity=INFO
