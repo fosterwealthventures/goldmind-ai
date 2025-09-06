@@ -1,19 +1,18 @@
-# Cloud Build config for GoldMIND AI
-# Safe YAML: arrays are dash-prefixed, all multi-command steps run in bash -c,
-# values with ':' are quoted, and indentation is 2 spaces.
+# Cloud Build for GoldMIND AI — API (+ optional Compute) deploy to Cloud Run
+# Uses safe YAML patterns and escapes runtime shell vars with $${...}
 
-timeout: "1200s"  # 20 minutes
+timeout: "1200s"
 
 substitutions:
   _REGION: "us-central1"
-  _REPO: "goldmind-api"                 # Artifact Registry repo name (docker)
-  _IMAGE_NAME: "goldmind-api"           # Image name (api image)
-  _SERVICE_API: "goldmind-api"          # Cloud Run service for the API
-  _SERVICE_COMPUTE: "goldmind-compute"  # Cloud Run service for compute (if you have one)
+  _REPO: "goldmind-api"                 # Artifact Registry (Docker) repo
+  _IMAGE_NAME: "goldmind-api"           # Image name for API
+  _SERVICE_API: "goldmind-api"          # Cloud Run service (API)
+  _SERVICE_COMPUTE: "goldmind-compute"  # Optional separate service
   _ENV: "prod"
-  _GRACE_SECONDS: "45"                  # rollout + cold start grace
+  _GRACE_SECONDS: "45"
   _API_HEALTH_PATH: "/health"
-  _COMPUTE_HEALTH_PATH: "/health"       # change if your compute service uses something else
+  _COMPUTE_HEALTH_PATH: "/health"
   _CPU: "1"
   _MEM: "512Mi"
   _MIN_INSTANCES: "0"
@@ -25,7 +24,7 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
-  # 0) Show build context (useful for debugging)
+  # 0) Context
   - id: "context: show env"
     name: "bash"
     entrypoint: "bash"
@@ -37,25 +36,24 @@ steps:
         echo "PROJECT_ID=${PROJECT_ID}"
         echo "BRANCH_NAME=${BRANCH_NAME}"
         echo "SHORT_SHA=${SHORT_SHA}"
-        echo "_REGION=${_REGION}"
-        echo "_ENV=${_ENV}"
-        echo "_SERVICE_API=${_SERVICE_API}, _SERVICE_COMPUTE=${_SERVICE_COMPUTE}"
+        echo "_REGION=${_REGION} _ENV=${_ENV}"
+        echo "_SERVICE_API=${_SERVICE_API} _SERVICE_COMPUTE=${_SERVICE_COMPUTE}"
 
-  # 1) Build the API image (context at repo root; adjust if your Dockerfile lives elsewhere)
+  # 1) Build API image (Dockerfile at api/Dockerfile)
   - id: "build: api image"
     name: "gcr.io/cloud-builders/docker"
     args:
       - "build"
       - "--file"
-      - "api/Dockerfile"         # <-- you said api/Dockerfile is correct
+      - "api/Dockerfile"
       - "--tag"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${SHORT_SHA}"
       - "--tag"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:latest"
       - "."
 
-  # 2) Push
-  - id: "push: api image"
+  # 2) Push images
+  - id: "push: api image (sha)"
     name: "gcr.io/cloud-builders/docker"
     args:
       - "push"
@@ -67,7 +65,7 @@ steps:
       - "push"
       - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:latest"
 
-  # 3) Deploy API service to Cloud Run
+  # 3) Deploy API to Cloud Run
   - id: "deploy: cloud run (api)"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: "bash"
@@ -90,9 +88,8 @@ steps:
           --set-env-vars="ENV=${_ENV}" \
           --quiet
 
-  # 4) (Optional) Deploy compute service if directory/infra exists.
-  # If you do NOT have a separate compute image, you can safely remove this step and the tests below.
-  - id: "deploy: cloud run (compute)"
+  # 4) (Optional) Deploy Compute — safe to keep; it won't fail pipeline if missing
+  - id: "deploy: cloud run (compute optional)"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: "bash"
     args:
@@ -100,7 +97,6 @@ steps:
       - "pipefail"
       - "-c"
       - |
-        # Reuse the same image unless you keep a separate one for compute.
         gcloud run deploy "${_SERVICE_COMPUTE}" \
           --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${SHORT_SHA}" \
           --region="${_REGION}" \
@@ -113,9 +109,9 @@ steps:
           --max-instances="${_MAX_INSTANCES}" \
           --concurrency="${_CONCURRENCY}" \
           --set-env-vars="ENV=${_ENV}" \
-          --quiet || echo "compute deploy skipped or failed (continue pipeline)"
+          --quiet || echo "compute deploy skipped or failed (continuing)"
 
-  # 5) Wait / grace for cold start + rollout
+  # 5) Grace wait
   - id: "wait: grace period"
     name: "bash"
     entrypoint: "bash"
@@ -124,10 +120,10 @@ steps:
       - "pipefail"
       - "-c"
       - |
-        echo "Sleeping ${_GRACE_SECONDS}s to allow revision to warm up..."
+        echo "Sleeping ${_GRACE_SECONDS}s to allow rollout to stabilize..."
         sleep "${_GRACE_SECONDS}"
 
-  # 6) Resolve service URLs
+  # 6) Resolve URLs and save as artifacts
   - id: "resolve: service urls"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: "bash"
@@ -137,30 +133,18 @@ steps:
       - "-c"
       - |
         API_URL="$(gcloud run services describe "${_SERVICE_API}" --region "${_REGION}" --format='value(status.url)')"
-        echo "API_URL=${API_URL}" | tee api_url.txt
+        echo "API_URL=$${API_URL}" | tee api_url.txt
 
-        # compute may be absent; don't fail the build if not found
         set +e
         COMPUTE_URL="$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format='value(status.url)')"
-        RC=$?
+        rc=$?
         set -e
-        if [ $RC -ne 0 ] || [ -z "${COMPUTE_URL}" ]; then
+        if [ $rc -ne 0 ] || [ -z "$${COMPUTE_URL}" ]; then
           COMPUTE_URL=""
           echo "No compute service detected (ok)."
         fi
-        echo "COMPUTE_URL=${COMPUTE_URL}" | tee compute_url.txt
+        echo "COMPUTE_URL=$${COMPUTE_URL}" | tee compute_url.txt
 
-artifacts:
-  objects:
-    location: "gs://${PROJECT_ID}-cloudbuild-artifacts/goldmind/${BRANCH_NAME}/${SHORT_SHA}"
-    paths:
-      - "api_url.txt"
-      - "compute_url.txt"
-
-# Post-deploy tests and summary (separate phase so failures are clearly reported)
-# Cloud Build "tests" are also steps; we keep them after artifacts so URLs are still uploaded even if tests fail.
-
-steps:
   # 7) Health check API
   - id: "health: api"
     name: "bash"
@@ -170,15 +154,11 @@ steps:
       - "pipefail"
       - "-c"
       - |
-        API_URL="$(cat api_url.txt | sed 's/API_URL=//')"
-        echo "Checking ${API_URL}${_API_HEALTH_PATH}"
-        curl -fsS "${API_URL}${_API_HEALTH_PATH}" | head -c 500
+        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
+        echo "Checking $${API_URL}${_API_HEALTH_PATH}"
+        curl -fsS "$${API_URL}${_API_HEALTH_PATH}" | head -c 500
 
-  # 8) Smoke test API (adjust endpoints to your real ones)
-    # Example hits:
-    #   /api/summary
-    #   /api/market/gold/spot
-    #   /api/insights/structural
+  # 8) Smoke tests API (adjust if your endpoints differ)
   - id: "smoke: api"
     name: "bash"
     entrypoint: "bash"
@@ -187,12 +167,12 @@ steps:
       - "pipefail"
       - "-c"
       - |
-        API_URL="$(cat api_url.txt | sed 's/API_URL=//')"
-        curl -fsS "${API_URL}/api/summary" | head -c 500
-        curl -fsS "${API_URL}/api/market/gold/spot" | head -c 500
-        curl -fsS "${API_URL}/api/insights/structural" | head -c 500
+        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
+        curl -fsS "$${API_URL}/api/summary" | head -c 500
+        curl -fsS "$${API_URL}/api/market/gold/spot" | head -c 500
+        curl -fsS "$${API_URL}/api/insights/structural" | head -c 500
 
-  # 9) Health check Compute (skip if no service)
+  # 9) Health compute (skip if not present)
   - id: "health: compute (optional)"
     name: "bash"
     entrypoint: "bash"
@@ -201,15 +181,15 @@ steps:
       - "pipefail"
       - "-c"
       - |
-        COMPUTE_URL="$(cat compute_url.txt | sed 's/COMPUTE_URL=//')"
-        if [ -n "${COMPUTE_URL}" ]; then
-          echo "Checking ${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}"
-          curl -fsS "${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}" | head -c 500
+        COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
+        if [ -n "$${COMPUTE_URL}" ]; then
+          echo "Checking $${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}"
+          curl -fsS "$${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}" | head -c 500
         else
           echo "No compute service configured; skipping."
         fi
 
-  # 10) Final summary
+  # 10) Summary
   - id: "summary"
     name: "bash"
     entrypoint: "bash"
@@ -223,12 +203,19 @@ steps:
         echo "Branch:  ${BRANCH_NAME}"
         echo "Commit:  ${COMMIT_SHA}"
         echo "Image:   ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${SHORT_SHA}"
-        API_URL="$(cat api_url.txt | sed 's/API_URL=//')"
-        COMPUTE_URL="$(cat compute_url.txt | sed 's/COMPUTE_URL=//')"
-        echo "API URL:      ${API_URL}"
+        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
+        COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
+        echo "API URL:      $${API_URL}"
         echo "Compute URL:  ${COMPUTE_URL:-<none>}"
         echo "Environment:  ${_ENV}"
         echo "-------------------------------"
+
+artifacts:
+  objects:
+    location: "gs://${PROJECT_ID}-cloudbuild-artifacts/goldmind/${BRANCH_NAME}/${SHORT_SHA}"
+    paths:
+      - "api_url.txt"
+      - "compute_url.txt"
 
 images:
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_NAME}:${SHORT_SHA}"
