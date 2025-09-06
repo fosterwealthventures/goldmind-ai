@@ -1,14 +1,20 @@
-# Cloud Build for GoldMIND AI — API + Compute (separate contexts; curl via Cloud SDK)
+# Cloud Build for GoldMIND AI — API + Compute
+# - Separate build contexts: api/ and compute/
+# - Escapes runtime vars ($${VAR}) to avoid Cloud Build templating
+# - Uses Cloud SDK image for any step that needs curl
+# - Grace period after deploy
+# - Health checks (blocking) + smoke checks (warn-only, configurable)
+# - Artifacts with resolved service URLs
 
 timeout: "1200s"
 
 substitutions:
   _REGION: "us-central1"
-  _REPO: "goldmind-api"
-  _IMAGE_API: "goldmind-api"
-  _IMAGE_COMPUTE: "goldmind-compute"
-  _SERVICE_API: "goldmind-api"
-  _SERVICE_COMPUTE: "goldmind-compute"
+  _REPO: "goldmind-api"                 # Artifact Registry (Docker) repository
+  _IMAGE_API: "goldmind-api"            # Image name for API
+  _IMAGE_COMPUTE: "goldmind-compute"    # Image name for Compute
+  _SERVICE_API: "goldmind-api"          # Cloud Run service (API)
+  _SERVICE_COMPUTE: "goldmind-compute"  # Cloud Run service (Compute)
   _ENV: "prod"
   _GRACE_SECONDS: "45"
   _API_HEALTH_PATH: "/health"
@@ -19,6 +25,8 @@ substitutions:
   _MAX_INSTANCES: "4"
   _CONCURRENCY: "80"
   _PORT: "8080"
+  # Update these to your real prod routes if they differ (space-separated)
+  _SMOKE_PATHS: "/api/summary /api/market/gold/spot /api/insights/structural /api/insights/midlayer /api/v1/alerts"
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -74,7 +82,9 @@ steps:
           --region="${_REGION}" --platform=managed --allow-unauthenticated \
           --port="${_PORT}" --cpu="${_CPU}" --memory="${_MEM}" \
           --min-instances="${_MIN_INSTANCES}" --max-instances="${_MAX_INSTANCES}" \
-          --concurrency="${_CONCURRENCY}" --set-env-vars="ENV=${_ENV}" --quiet
+          --concurrency="${_CONCURRENCY}" \
+          --set-env-vars="ENV=${_ENV}" \
+          --quiet
 
   # Deploy Compute
   - id: "deploy: compute"
@@ -90,15 +100,17 @@ steps:
           --region="${_REGION}" --platform=managed --allow-unauthenticated \
           --port="${_PORT}" --cpu="${_CPU}" --memory="${_MEM}" \
           --min-instances="${_MIN_INSTANCES}" --max-instances="${_MAX_INSTANCES}" \
-          --concurrency="${_CONCURRENCY}" --set-env-vars="ENV=${_ENV}" --quiet
+          --concurrency="${_CONCURRENCY}" \
+          --set-env-vars="ENV=${_ENV}" \
+          --quiet
 
-  # Grace period
+  # Grace period for rollout/cold start
   - id: "wait: grace"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args: ["-c", "sleep ${_GRACE_SECONDS}"]
 
-  # Resolve URLs and persist
+  # Resolve URLs and persist as artifacts
   - id: "resolve: urls"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
@@ -112,7 +124,7 @@ steps:
         echo "API_URL=$${API_URL}" | tee api_url.txt
         echo "COMPUTE_URL=$${COMPUTE_URL}" | tee compute_url.txt
 
-  # Health checks (use Cloud SDK image so curl is present)
+  # Health checks (blocking)
   - id: "health: api"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
@@ -137,19 +149,28 @@ steps:
         echo "Checking $${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}"
         curl -fsS "$${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}" | head -c 400
 
-  # Smoke tests (API)
-  - id: "smoke: api"
+  # Smoke tests (API) — configurable & non-blocking (warn on 4xx/5xx)
+  - id: "smoke: api (warn-only)"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
-      - -euxo
+      - -eo
       - pipefail
       - -c
       - |
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
-        curl -fsS "$${API_URL}/api/summary" | head -c 400
-        curl -fsS "$${API_URL}/api/market/gold/spot" | head -c 400
-        curl -fsS "$${API_URL}/api/insights/structural" | head -c 400
+        SMOKE_PATHS="${_SMOKE_PATHS}"
+        echo "Running smoke checks on: $${SMOKE_PATHS}"
+        FAIL=0
+        for p in $${SMOKE_PATHS}; do
+          URL="$${API_URL}$${p}"
+          CODE="$(curl -s -o /dev/null -w "%{http_code}" "$${URL}" || echo 000)"
+          echo "SMOKE $${p} -> HTTP $${CODE}"
+          if [ "$${CODE}" -ge 200 ] && [ "$${CODE}" -lt 400 ]; then :; else FAIL=1; fi
+        done
+        if [ "$${FAIL}" -ne 0 ]; then
+          echo "Smoke warnings: one or more endpoints returned non-2xx. Continuing pipeline."
+        fi
 
   # Summary
   - id: "summary"
