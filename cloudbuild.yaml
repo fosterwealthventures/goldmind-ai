@@ -60,8 +60,8 @@ steps:
           --allow-unauthenticated
 
         URL="$(gcloud run services describe "$_SERVICE" --region "$_REGION" --format='value(status.url)')"
-        echo "SERVICE_URL=${URL}" > /workspace/deploy.env
-        echo "IMAGE=$_IMAGE" >> /workspace/deploy.env
+        echo "SERVICE_URL=$${URL}" > /workspace/deploy.env
+        echo "SERVICE_IMAGE=$_IMAGE" >> /workspace/deploy.env   # avoid ${IMAGE} later
 
   # 5) Wait for rollout readiness via /health
   - id: "wait: /health ready"
@@ -74,7 +74,7 @@ steps:
         source /workspace/deploy.env
         echo "Waiting for service to pass /health ..."
         for i in {1..30}; do
-          if curl -fsS "${SERVICE_URL}/health" >/dev/null 2>&1; then
+            if curl -fsS "$${SERVICE_URL}/health" >/dev/null 2>&1; then
             echo "Health check OK"
             exit 0
           fi
@@ -95,7 +95,7 @@ steps:
         source /workspace/deploy.env
         chmod +x smoke.sh
         apt-get update >/dev/null && apt-get install -y --no-install-recommends jq >/dev/null
-        ./smoke.sh "${SERVICE_URL}"   # or use "${_API_URL}" if you prefer the custom domain
+        ./scripts/smoke.sh "$${SERVICE_URL}"   # or use "${_API_URL}" if you prefer the custom domain
 
   # 7) Summary
   - id: "summary"
@@ -106,12 +106,12 @@ steps:
       - |
         source /workspace/deploy.env
         echo "--------------------------------------------------"
-        echo " GoldMIND API – Deploy Summary"
+        echo " GoldMIND API - Deploy Summary"
         echo " Project:     ${PROJECT_ID}"
         echo " Region:      ${_REGION}"
         echo " Service:     ${_SERVICE}"
-        echo " Service URL: ${SERVICE_URL}"
-        echo " Image:       ${IMAGE}"
+        echo " Service URL: $${SERVICE_URL}"
+        echo " Image:       $${SERVICE_IMAGE}"
         echo " API URL:     ${_API_URL}"
         echo " Compute URL: ${_COMPUTE_URL}"
         echo "--------------------------------------------------"
