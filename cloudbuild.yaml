@@ -1,14 +1,14 @@
-# Cloud Build for GoldMIND AI — API + Compute (separate contexts)
+# Cloud Build for GoldMIND AI — API + Compute (separate contexts; curl via Cloud SDK)
 
 timeout: "1200s"
 
 substitutions:
   _REGION: "us-central1"
-  _REPO: "goldmind-api"                 # Artifact Registry repo
-  _IMAGE_API: "goldmind-api"            # API image name
-  _IMAGE_COMPUTE: "goldmind-compute"    # Compute image name
-  _SERVICE_API: "goldmind-api"          # Cloud Run service (API)
-  _SERVICE_COMPUTE: "goldmind-compute"  # Cloud Run service (Compute)
+  _REPO: "goldmind-api"
+  _IMAGE_API: "goldmind-api"
+  _IMAGE_COMPUTE: "goldmind-compute"
+  _SERVICE_API: "goldmind-api"
+  _SERVICE_COMPUTE: "goldmind-compute"
   _ENV: "prod"
   _GRACE_SECONDS: "45"
   _API_HEALTH_PATH: "/health"
@@ -94,7 +94,7 @@ steps:
 
   # Grace period
   - id: "wait: grace"
-    name: "bash"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args: ["-c", "sleep ${_GRACE_SECONDS}"]
 
@@ -112,9 +112,9 @@ steps:
         echo "API_URL=$${API_URL}" | tee api_url.txt
         echo "COMPUTE_URL=$${COMPUTE_URL}" | tee compute_url.txt
 
-  # Health checks
+  # Health checks (use Cloud SDK image so curl is present)
   - id: "health: api"
-    name: "bash"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
       - -euxo
@@ -122,10 +122,11 @@ steps:
       - -c
       - |
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
+        echo "Checking $${API_URL}${_API_HEALTH_PATH}"
         curl -fsS "$${API_URL}${_API_HEALTH_PATH}" | head -c 400
 
   - id: "health: compute"
-    name: "bash"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
       - -euxo
@@ -133,11 +134,12 @@ steps:
       - -c
       - |
         COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
+        echo "Checking $${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}"
         curl -fsS "$${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}" | head -c 400
 
-  # Smoke tests (adjust if needed)
+  # Smoke tests (API)
   - id: "smoke: api"
-    name: "bash"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
       - -euxo
@@ -151,7 +153,7 @@ steps:
 
   # Summary
   - id: "summary"
-    name: "bash"
+    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
       - -euxo
