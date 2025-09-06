@@ -1,11 +1,10 @@
-# Cloud Build for GoldMIND AI — API + Compute
-# Safe YAML: single 'steps' block, 2-space indents, quote values with ':'.
+# Cloud Build for GoldMIND AI — API + Compute (separate contexts)
 
 timeout: "1200s"
 
 substitutions:
   _REGION: "us-central1"
-  _REPO: "goldmind-api"                 # Artifact Registry (Docker) repo
+  _REPO: "goldmind-api"                 # Artifact Registry repo
   _IMAGE_API: "goldmind-api"            # API image name
   _IMAGE_COMPUTE: "goldmind-compute"    # Compute image name
   _SERVICE_API: "goldmind-api"          # Cloud Run service (API)
@@ -25,30 +24,15 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
-  # 0) Context
-  - id: "context: show env"
-    name: "bash"
-    entrypoint: "bash"
-    args:
-      - "-euxo"
-      - "pipefail"
-      - "-c"
-      - |
-        echo "PROJECT_ID=${PROJECT_ID}"
-        echo "BRANCH_NAME=${BRANCH_NAME}"
-        echo "SHORT_SHA=${SHORT_SHA}"
-        echo "_REGION=${_REGION} _ENV=${_ENV}"
-        echo "_SERVICE_API=${_SERVICE_API} _SERVICE_COMPUTE=${_SERVICE_COMPUTE}"
-
-  # 1) Build API image (api/Dockerfile)
+  # Build API (context = api/)
   - id: "build: api"
     name: "gcr.io/cloud-builders/docker"
     args:
-      - "build"
-      - "--file=api/Dockerfile"
-      - "--tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}"
-      - "--tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest"
-      - "."
+      - build
+      - --file=api/Dockerfile
+      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}
+      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest
+      - api
 
   - id: "push: api (sha)"
     name: "gcr.io/cloud-builders/docker"
@@ -58,15 +42,15 @@ steps:
     name: "gcr.io/cloud-builders/docker"
     args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest"]
 
-  # 2) Build Compute image (compute/Dockerfile)
+  # Build Compute (context = compute/)
   - id: "build: compute"
     name: "gcr.io/cloud-builders/docker"
     args:
-      - "build"
-      - "--file=compute/Dockerfile"
-      - "--tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"
-      - "--tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest"
-      - "."
+      - build
+      - --file=compute/Dockerfile
+      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}
+      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest
+      - compute
 
   - id: "push: compute (sha)"
     name: "gcr.io/cloud-builders/docker"
@@ -76,14 +60,14 @@ steps:
     name: "gcr.io/cloud-builders/docker"
     args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest"]
 
-  # 3) Deploy API
+  # Deploy API
   - id: "deploy: api"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
-    entrypoint: "bash"
+    entrypoint: bash
     args:
-      - "-euxo"
-      - "pipefail"
-      - "-c"
+      - -euxo
+      - pipefail
+      - -c
       - |
         gcloud run deploy "${_SERVICE_API}" \
           --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}" \
@@ -92,14 +76,14 @@ steps:
           --min-instances="${_MIN_INSTANCES}" --max-instances="${_MAX_INSTANCES}" \
           --concurrency="${_CONCURRENCY}" --set-env-vars="ENV=${_ENV}" --quiet
 
-  # 4) Deploy Compute
+  # Deploy Compute
   - id: "deploy: compute"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
-    entrypoint: "bash"
+    entrypoint: bash
     args:
-      - "-euxo"
-      - "pipefail"
-      - "-c"
+      - -euxo
+      - pipefail
+      - -c
       - |
         gcloud run deploy "${_SERVICE_COMPUTE}" \
           --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}" \
@@ -108,71 +92,71 @@ steps:
           --min-instances="${_MIN_INSTANCES}" --max-instances="${_MAX_INSTANCES}" \
           --concurrency="${_CONCURRENCY}" --set-env-vars="ENV=${_ENV}" --quiet
 
-  # 5) Grace period
+  # Grace period
   - id: "wait: grace"
     name: "bash"
-    entrypoint: "bash"
+    entrypoint: bash
     args: ["-c", "sleep ${_GRACE_SECONDS}"]
 
-  # 6) Resolve URLs and persist
+  # Resolve URLs and persist
   - id: "resolve: urls"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
-    entrypoint: "bash"
+    entrypoint: bash
     args:
-      - "-euxo"
-      - "pipefail"
-      - "-c"
+      - -euxo
+      - pipefail
+      - -c
       - |
         API_URL="$(gcloud run services describe "${_SERVICE_API}" --region "${_REGION}" --format='value(status.url)')"
         COMPUTE_URL="$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format='value(status.url)')"
         echo "API_URL=$${API_URL}" | tee api_url.txt
         echo "COMPUTE_URL=$${COMPUTE_URL}" | tee compute_url.txt
 
-  # 7) Health checks
+  # Health checks
   - id: "health: api"
     name: "bash"
-    entrypoint: "bash"
+    entrypoint: bash
     args:
-      - "-euxo"
-      - "pipefail"
-      - "-c"
+      - -euxo
+      - pipefail
+      - -c
       - |
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
         curl -fsS "$${API_URL}${_API_HEALTH_PATH}" | head -c 400
 
   - id: "health: compute"
     name: "bash"
-    entrypoint: "bash"
+    entrypoint: bash
     args:
-      - "-euxo"
-      - "pipefail"
-      - "-c"
+      - -euxo
+      - pipefail
+      - -c
       - |
         COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
         curl -fsS "$${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}" | head -c 400
 
-  # 8) Smoke tests (adjust endpoints if different)
+  # Smoke tests (adjust if needed)
   - id: "smoke: api"
     name: "bash"
-    entrypoint: "bash"
+    entrypoint: bash
     args:
-      - "-euxo"
-      - "pipefail"
-      - "-c"
+      - -euxo
+      - pipefail
+      - -c
       - |
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
         curl -fsS "$${API_URL}/api/summary" | head -c 400
         curl -fsS "$${API_URL}/api/market/gold/spot" | head -c 400
         curl -fsS "$${API_URL}/api/insights/structural" | head -c 400
 
-  # 9) Summary
+  # Summary
   - id: "summary"
     name: "bash"
-    entrypoint: "bash"
+    entrypoint: bash
     args:
-      - "-euxo"
-      - "pipefail"
-      - "-c"
+      - -euxo
+      - pipefail
+      - -c
       - |
         echo "------ Deployment Summary ------"
         echo "Project: ${PROJECT_ID}"
