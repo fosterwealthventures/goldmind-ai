@@ -1,14 +1,15 @@
-# Cloud Build for GoldMIND AI — deploy API + Compute separately
+# Cloud Build for GoldMIND AI — API + Compute
+# Safe YAML: single 'steps' block, 2-space indents, quote values with ':'.
 
 timeout: "1200s"
 
 substitutions:
   _REGION: "us-central1"
-  _REPO: "goldmind-api"
-  _IMAGE_API: "goldmind-api"
-  _IMAGE_COMPUTE: "goldmind-compute"
-  _SERVICE_API: "goldmind-api"
-  _SERVICE_COMPUTE: "goldmind-compute"
+  _REPO: "goldmind-api"                 # Artifact Registry (Docker) repo
+  _IMAGE_API: "goldmind-api"            # API image name
+  _IMAGE_COMPUTE: "goldmind-compute"    # Compute image name
+  _SERVICE_API: "goldmind-api"          # Cloud Run service (API)
+  _SERVICE_COMPUTE: "goldmind-compute"  # Cloud Run service (Compute)
   _ENV: "prod"
   _GRACE_SECONDS: "45"
   _API_HEALTH_PATH: "/health"
@@ -24,8 +25,23 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
-  # Build API
-  - id: "build: api image"
+  # 0) Context
+  - id: "context: show env"
+    name: "bash"
+    entrypoint: "bash"
+    args:
+      - "-euxo"
+      - "pipefail"
+      - "-c"
+      - |
+        echo "PROJECT_ID=${PROJECT_ID}"
+        echo "BRANCH_NAME=${BRANCH_NAME}"
+        echo "SHORT_SHA=${SHORT_SHA}"
+        echo "_REGION=${_REGION} _ENV=${_ENV}"
+        echo "_SERVICE_API=${_SERVICE_API} _SERVICE_COMPUTE=${_SERVICE_COMPUTE}"
+
+  # 1) Build API image (api/Dockerfile)
+  - id: "build: api"
     name: "gcr.io/cloud-builders/docker"
     args:
       - "build"
@@ -34,20 +50,16 @@ steps:
       - "--tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest"
       - "."
 
-  - id: "push: api image"
+  - id: "push: api (sha)"
     name: "gcr.io/cloud-builders/docker"
-    args:
-      - "push"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}"
+    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}"]
 
-  - id: "push: api image (latest)"
+  - id: "push: api (latest)"
     name: "gcr.io/cloud-builders/docker"
-    args:
-      - "push"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest"
+    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest"]
 
-  # Build Compute
-  - id: "build: compute image"
+  # 2) Build Compute image (compute/Dockerfile)
+  - id: "build: compute"
     name: "gcr.io/cloud-builders/docker"
     args:
       - "build"
@@ -56,23 +68,21 @@ steps:
       - "--tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest"
       - "."
 
-  - id: "push: compute image"
+  - id: "push: compute (sha)"
     name: "gcr.io/cloud-builders/docker"
-    args:
-      - "push"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"
+    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"]
 
-  - id: "push: compute image (latest)"
+  - id: "push: compute (latest)"
     name: "gcr.io/cloud-builders/docker"
-    args:
-      - "push"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest"
+    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest"]
 
-  # Deploy API
+  # 3) Deploy API
   - id: "deploy: api"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: "bash"
     args:
+      - "-euxo"
+      - "pipefail"
       - "-c"
       - |
         gcloud run deploy "${_SERVICE_API}" \
@@ -82,11 +92,13 @@ steps:
           --min-instances="${_MIN_INSTANCES}" --max-instances="${_MAX_INSTANCES}" \
           --concurrency="${_CONCURRENCY}" --set-env-vars="ENV=${_ENV}" --quiet
 
-  # Deploy Compute
+  # 4) Deploy Compute
   - id: "deploy: compute"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: "bash"
     args:
+      - "-euxo"
+      - "pipefail"
       - "-c"
       - |
         gcloud run deploy "${_SERVICE_COMPUTE}" \
@@ -96,56 +108,95 @@ steps:
           --min-instances="${_MIN_INSTANCES}" --max-instances="${_MAX_INSTANCES}" \
           --concurrency="${_CONCURRENCY}" --set-env-vars="ENV=${_ENV}" --quiet
 
-  # Grace period
+  # 5) Grace period
   - id: "wait: grace"
     name: "bash"
     entrypoint: "bash"
-    args:
-      - "-c"
-      - "sleep ${_GRACE_SECONDS}"
+    args: ["-c", "sleep ${_GRACE_SECONDS}"]
 
-  # Resolve URLs
+  # 6) Resolve URLs and persist
   - id: "resolve: urls"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: "bash"
     args:
+      - "-euxo"
+      - "pipefail"
       - "-c"
       - |
-        API_URL="$(gcloud run services describe ${_SERVICE_API} --region ${_REGION} --format='value(status.url)')"
-        COMPUTE_URL="$(gcloud run services describe ${_SERVICE_COMPUTE} --region ${_REGION} --format='value(status.url)')"
+        API_URL="$(gcloud run services describe "${_SERVICE_API}" --region "${_REGION}" --format='value(status.url)')"
+        COMPUTE_URL="$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format='value(status.url)')"
         echo "API_URL=$${API_URL}" | tee api_url.txt
         echo "COMPUTE_URL=$${COMPUTE_URL}" | tee compute_url.txt
 
-  # Health + smoke checks (API + Compute)
+  # 7) Health checks
   - id: "health: api"
     name: "bash"
     entrypoint: "bash"
     args:
+      - "-euxo"
+      - "pipefail"
       - "-c"
       - |
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
-        curl -fsS "$${API_URL}${_API_HEALTH_PATH}" | head -c 200
+        curl -fsS "$${API_URL}${_API_HEALTH_PATH}" | head -c 400
 
   - id: "health: compute"
     name: "bash"
     entrypoint: "bash"
     args:
+      - "-euxo"
+      - "pipefail"
       - "-c"
       - |
         COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
-        curl -fsS "$${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}" | head -c 200
+        curl -fsS "$${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}" | head -c 400
 
+  # 8) Smoke tests (adjust endpoints if different)
+  - id: "smoke: api"
+    name: "bash"
+    entrypoint: "bash"
+    args:
+      - "-euxo"
+      - "pipefail"
+      - "-c"
+      - |
+        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
+        curl -fsS "$${API_URL}/api/summary" | head -c 400
+        curl -fsS "$${API_URL}/api/market/gold/spot" | head -c 400
+        curl -fsS "$${API_URL}/api/insights/structural" | head -c 400
+
+  # 9) Summary
   - id: "summary"
     name: "bash"
     entrypoint: "bash"
     args:
+      - "-euxo"
+      - "pipefail"
       - "-c"
       - |
         echo "------ Deployment Summary ------"
-        echo "API URL: $(sed 's/^API_URL=//' api_url.txt)"
-        echo "Compute URL: $(sed 's/^COMPUTE_URL=//' compute_url.txt)"
-        echo "--------------------------------"
+        echo "Project: ${PROJECT_ID}"
+        echo "Branch:  ${BRANCH_NAME}"
+        echo "Commit:  ${COMMIT_SHA}"
+        echo "Images:"
+        echo "  API:     ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}"
+        echo "  Compute: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"
+        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
+        COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
+        echo "API URL:      $${API_URL}"
+        echo "Compute URL:  $${COMPUTE_URL}"
+        echo "Environment:  ${_ENV}"
+        echo "-------------------------------"
 
 artifacts:
   objects:
-    location: "gs://${PROJECT_ID}-clo_
+    location: "gs://${PROJECT_ID}-cloudbuild-artifacts/goldmind/${BRANCH_NAME}/${SHORT_SHA}"
+    paths:
+      - "api_url.txt"
+      - "compute_url.txt"
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest"
