@@ -2,22 +2,12 @@
 # Build & deploy GoldMIND API to Cloud Run, then smoke-test and print a summary.
 
 substitutions:
-<<<<<<< HEAD
-  # ---- You can override these in your Trigger if desired ----
-  _REGION: us-central1
-  _SERVICE: goldmind-api
-  _AR_REPO: goldmind                                  # Artifact Registry repo name
-  _IMAGE: us-central1-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/api:${SHORT_SHA}
-
-  # Optional URLs (kept as valid custom subs). Safe if unused thanks to ALLOW_LOOSE.
-=======
   _REGION: us-central1
   _SERVICE: goldmind-api
   _AR_REPO: goldmind
   _IMAGE: us-central1-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/api:${SHORT_SHA}
 
   # Optional (safe if unused due to ALLOW_LOOSE)
->>>>>>> 8ea92db (CI/CD: Cloud Build deploy + smoke; underscore subs; remove REG_HOST)
   _API_URL: https://api.fwvgoldmindai.com
   _COMPUTE_URL: https://goldmind-api-884387776097.us-central1.run.app
 
@@ -37,12 +27,7 @@ steps:
       - -c
       - |
         set -e
-<<<<<<< HEAD
-        REG_HOST="$(echo "$_IMAGE" | awk -F/ '{print $1}')"
-        gcloud auth configure-docker "$REG_HOST" -q
-=======
         gcloud auth configure-docker "$(echo "$_IMAGE" | awk -F/ '{print $1}')" -q
->>>>>>> 8ea92db (CI/CD: Cloud Build deploy + smoke; underscore subs; remove REG_HOST)
 
   # 2) Build the image (Dockerfile in api/)
   - id: "build: docker image"
@@ -97,11 +82,7 @@ steps:
         curl -i "${SERVICE_URL}/health" || true
         exit 1
 
-<<<<<<< HEAD
-  # 6) Smoke tests (script lives at repo root: ./smoke.sh)
-=======
   # 6) Smoke tests (script at repo root: scripts/smoke.sh)
->>>>>>> 8ea92db (CI/CD: Cloud Build deploy + smoke; underscore subs; remove REG_HOST)
   - id: "test: smoke"
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
@@ -110,15 +91,9 @@ steps:
       - |
         set -euo pipefail
         source /workspace/deploy.env
-<<<<<<< HEAD
-        chmod +x smoke.sh
-        apt-get update >/dev/null && apt-get install -y --no-install-recommends jq >/dev/null
-        ./smoke.sh "${SERVICE_URL}"   # or use "${_API_URL}" if you prefer the custom domain
-=======
         chmod +x scripts/smoke.sh
         apt-get update >/dev/null && apt-get install -y --no-install-recommends jq >/dev/null
         ./scripts/smoke.sh "${SERVICE_URL}"   # or "${_API_URL}" if you prefer the custom domain
->>>>>>> 8ea92db (CI/CD: Cloud Build deploy + smoke; underscore subs; remove REG_HOST)
 
   # 7) Summary
   - id: "summary"
