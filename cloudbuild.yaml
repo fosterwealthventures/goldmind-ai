@@ -1,16 +1,15 @@
-# Cloud Build for GoldMIND AI — API + Compute
+# Cloud Build for GoldMIND AI — builds & deploys API + Compute to Cloud Run
 # - Separate build contexts: api/ and compute/
-# - Escapes runtime vars ($${VAR}) to avoid Cloud Build templating
-# - Uses Cloud SDK image for any step that needs curl
-# - Grace period after deploy
-# - Health checks (blocking) + smoke checks (warn-only, configurable)
-# - Artifacts with resolved service URLs
+# - Uses Cloud SDK image for steps that need gcloud/curl
+# - Grace wait after deploy
+# - Health checks (blocking) + configurable smoke checks (warn-only)
+# - Uploads service URLs as artifacts to GCS bucket: gs://${PROJECT_ID}-cloudbuild-artifacts/...
 
 timeout: "1200s"
 
 substitutions:
   _REGION: "us-central1"
-  _REPO: "goldmind-api"                 # Artifact Registry (Docker) repository
+  _REPO: "goldmind-api"                 # Artifact Registry repository (docker)
   _IMAGE_API: "goldmind-api"            # Image name for API
   _IMAGE_COMPUTE: "goldmind-compute"    # Image name for Compute
   _SERVICE_API: "goldmind-api"          # Cloud Run service (API)
@@ -25,8 +24,8 @@ substitutions:
   _MAX_INSTANCES: "4"
   _CONCURRENCY: "80"
   _PORT: "8080"
-  # Update these to your real prod routes if they differ (space-separated)
-  _SMOKE_PATHS: "/api/summary /api/market/gold/spot /api/insights/structural /api/insights/midlayer /api/v1/alerts"
+  # Adjust to your real public routes (space-separated). These are warn-only.
+  _SMOKE_PATHS: "/api/summary /api/market/gold/spot /api/insights/structural"
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -73,10 +72,9 @@ steps:
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
-      - -euxo
-      - pipefail
       - -c
       - |
+        set -euo pipefail
         gcloud run deploy "${_SERVICE_API}" \
           --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}" \
           --region="${_REGION}" --platform=managed --allow-unauthenticated \
@@ -91,10 +89,9 @@ steps:
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
-      - -euxo
-      - pipefail
       - -c
       - |
+        set -euo pipefail
         gcloud run deploy "${_SERVICE_COMPUTE}" \
           --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}" \
           --region="${_REGION}" --platform=managed --allow-unauthenticated \
@@ -104,72 +101,68 @@ steps:
           --set-env-vars="ENV=${_ENV}" \
           --quiet
 
-  # Grace period for rollout/cold start
+  # Grace wait for rollout / cold start
   - id: "wait: grace"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args: ["-c", "sleep ${_GRACE_SECONDS}"]
 
-  # Resolve URLs and persist as artifacts
+  # Resolve service URLs and persist as artifacts
   - id: "resolve: urls"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
-      - -euxo
-      - pipefail
       - -c
       - |
+        set -euo pipefail
         API_URL="$(gcloud run services describe "${_SERVICE_API}" --region "${_REGION}" --format='value(status.url)')"
         COMPUTE_URL="$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format='value(status.url)')"
-        echo "API_URL=$${API_URL}" | tee api_url.txt
-        echo "COMPUTE_URL=$${COMPUTE_URL}" | tee compute_url.txt
+        echo "API_URL=$API_URL" | tee api_url.txt
+        echo "COMPUTE_URL=$COMPUTE_URL" | tee compute_url.txt
 
   # Health checks (blocking)
   - id: "health: api"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
-      - -euxo
-      - pipefail
       - -c
       - |
+        set -euo pipefail
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
-        echo "Checking $${API_URL}${_API_HEALTH_PATH}"
-        curl -fsS "$${API_URL}${_API_HEALTH_PATH}" | head -c 400
+        echo "Checking $API_URL${_API_HEALTH_PATH}"
+        curl -fsS "$API_URL${_API_HEALTH_PATH}" | head -c 400
 
   - id: "health: compute"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
-      - -euxo
-      - pipefail
       - -c
       - |
+        set -euo pipefail
         COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
-        echo "Checking $${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}"
-        curl -fsS "$${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}" | head -c 400
+        echo "Checking $COMPUTE_URL${_COMPUTE_HEALTH_PATH}"
+        curl -fsS "$COMPUTE_URL${_COMPUTE_HEALTH_PATH}" | head -c 400
 
-  # Smoke tests (API) — configurable & non-blocking (warn on 4xx/5xx)
+  # Smoke tests (warn-only; configure _SMOKE_PATHS)
   - id: "smoke: api (warn-only)"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
-      - -eo
-      - pipefail
       - -c
       - |
+        set -eo pipefail
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
         SMOKE_PATHS="${_SMOKE_PATHS}"
-        echo "Running smoke checks on: $${SMOKE_PATHS}"
+        echo "Running smoke checks on: $SMOKE_PATHS"
         FAIL=0
-        for p in $${SMOKE_PATHS}; do
-          URL="$${API_URL}$${p}"
-          CODE="$(curl -s -o /dev/null -w "%{http_code}" "$${URL}" || echo 000)"
-          echo "SMOKE $${p} -> HTTP $${CODE}"
-          if [ "$${CODE}" -ge 200 ] && [ "$${CODE}" -lt 400 ]; then :; else FAIL=1; fi
+        for p in $SMOKE_PATHS; do
+          URL="$API_URL$p"
+          CODE="$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo 000)"
+          echo "SMOKE $p -> HTTP $CODE"
+          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 400 ]; then :; else FAIL=1; fi
         done
-        if [ "$${FAIL}" -ne 0 ]; then
-          echo "Smoke warnings: one or more endpoints returned non-2xx. Continuing pipeline."
+        if [ "$FAIL" -ne 0 ]; then
+          echo "Smoke warnings: one or more endpoints returned non-2xx. Continuing."
         fi
 
   # Summary
@@ -177,10 +170,9 @@ steps:
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
-      - -euxo
-      - pipefail
       - -c
       - |
+        set -euo pipefail
         echo "------ Deployment Summary ------"
         echo "Project: ${PROJECT_ID}"
         echo "Branch:  ${BRANCH_NAME}"
@@ -190,13 +182,16 @@ steps:
         echo "  Compute: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
         COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
-        echo "API URL:      $${API_URL}"
-        echo "Compute URL:  $${COMPUTE_URL}"
+        echo "API URL:      $API_URL"
+        echo "Compute URL:  $COMPUTE_URL"
         echo "Environment:  ${_ENV}"
         echo "-------------------------------"
 
 artifacts:
   objects:
+    # Make sure this bucket exists and CB SA has storage.objectAdmin:
+    #   gsutil mb -l us-central1 gs://${PROJECT_ID}-cloudbuild-artifacts
+    #   gsutil iam ch serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com:roles/storage.objectAdmin gs://${PROJECT_ID}-cloudbuild-artifacts
     location: "gs://${PROJECT_ID}-cloudbuild-artifacts/goldmind/${BRANCH_NAME}/${SHORT_SHA}"
     paths:
       - "api_url.txt"
