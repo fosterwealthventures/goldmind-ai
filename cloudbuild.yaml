@@ -30,6 +30,7 @@ substitutions:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  substitution_option: ALLOW_LOOSE
 
 steps:
   # Build API (context = api/)
