@@ -1,3 +1,5 @@
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 # Cloud Build for GoldMIND AI — API + Compute
 # - Separate build contexts: api/ and compute/
 # - Escapes runtime vars ($${VAR}) to avoid Cloud Build templating
@@ -5,12 +7,33 @@
 # - Grace period after deploy
 # - Health checks (blocking) + smoke checks (warn-only, configurable)
 # - Artifacts with resolved service URLs
+=======
+=======
+>>>>>>> Stashed changes
+# Cloud Build for GoldMIND AI — builds & deploys API + Compute to Cloud Run
+# - Separate build contexts: api/ and compute/
+# - Uses Cloud SDK image for steps that need gcloud/curl
+# - Grace wait after deploy
+# - Health checks (blocking) + configurable smoke checks (warn-only)
+# - Uploads service URLs as artifacts to GCS bucket: gs://${PROJECT_ID}-cloudbuild-artifacts/...
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 
 timeout: "1200s"
 
 substitutions:
   _REGION: "us-central1"
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
   _REPO: "goldmind-api"                 # Artifact Registry (Docker) repository
+=======
+  _REPO: "goldmind-api"                 # Artifact Registry repository (docker)
+>>>>>>> Stashed changes
+=======
+  _REPO: "goldmind-api"                 # Artifact Registry repository (docker)
+>>>>>>> Stashed changes
   _IMAGE_API: "goldmind-api"            # Image name for API
   _IMAGE_COMPUTE: "goldmind-compute"    # Image name for Compute
   _SERVICE_API: "goldmind-api"          # Cloud Run service (API)
@@ -25,12 +48,23 @@ substitutions:
   _MAX_INSTANCES: "4"
   _CONCURRENCY: "80"
   _PORT: "8080"
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
   # Update these to your real prod routes if they differ (space-separated)
   _SMOKE_PATHS: "/api/summary /api/market/gold/spot /api/insights/structural /api/insights/midlayer /api/v1/alerts"
+=======
+  # Adjust to your real public routes (space-separated). These are warn-only.
+  _SMOKE_PATHS: "/api/summary /api/market/gold/spot /api/insights/structural"
+>>>>>>> Stashed changes
+=======
+  # Adjust to your real public routes (space-separated). These are warn-only.
+  _SMOKE_PATHS: "/api/summary /api/market/gold/spot /api/insights/structural"
+>>>>>>> Stashed changes
 
 options:
   logging: CLOUD_LOGGING_ONLY
   substitution_option: ALLOW_LOOSE
+
 
 steps:
   # Build API (context = api/)
@@ -74,10 +108,22 @@ steps:
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
       - -euxo
       - pipefail
       - -c
       - |
+=======
+      - -c
+      - |
+        set -euo pipefail
+>>>>>>> Stashed changes
+=======
+      - -c
+      - |
+        set -euo pipefail
+>>>>>>> Stashed changes
         gcloud run deploy "${_SERVICE_API}" \
           --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}" \
           --region="${_REGION}" --platform=managed --allow-unauthenticated \
@@ -92,10 +138,22 @@ steps:
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
       - -euxo
       - pipefail
       - -c
       - |
+=======
+      - -c
+      - |
+        set -euo pipefail
+>>>>>>> Stashed changes
+=======
+      - -c
+      - |
+        set -euo pipefail
+>>>>>>> Stashed changes
         gcloud run deploy "${_SERVICE_COMPUTE}" \
           --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}" \
           --region="${_REGION}" --platform=managed --allow-unauthenticated \
@@ -105,17 +163,35 @@ steps:
           --set-env-vars="ENV=${_ENV}" \
           --quiet
 
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
   # Grace period for rollout/cold start
+=======
+  # Grace wait for rollout / cold start
+>>>>>>> Stashed changes
+=======
+  # Grace wait for rollout / cold start
+>>>>>>> Stashed changes
   - id: "wait: grace"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args: ["-c", "sleep ${_GRACE_SECONDS}"]
 
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
   # Resolve URLs and persist as artifacts
+=======
+  # Resolve service URLs and persist as artifacts
+>>>>>>> Stashed changes
+=======
+  # Resolve service URLs and persist as artifacts
+>>>>>>> Stashed changes
   - id: "resolve: urls"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
       - -euxo
       - pipefail
       - -c
@@ -124,12 +200,28 @@ steps:
         COMPUTE_URL="$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format='value(status.url)')"
         echo "API_URL=$${API_URL}" | tee api_url.txt
         echo "COMPUTE_URL=$${COMPUTE_URL}" | tee compute_url.txt
+=======
+=======
+>>>>>>> Stashed changes
+      - -c
+      - |
+        set -euo pipefail
+        API_URL="$(gcloud run services describe "${_SERVICE_API}" --region "${_REGION}" --format='value(status.url)')"
+        COMPUTE_URL="$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format='value(status.url)')"
+        echo "API_URL=$API_URL" | tee api_url.txt
+        echo "COMPUTE_URL=$COMPUTE_URL" | tee compute_url.txt
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 
   # Health checks (blocking)
   - id: "health: api"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
       - -euxo
       - pipefail
       - -c
@@ -137,11 +229,26 @@ steps:
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
         echo "Checking $${API_URL}${_API_HEALTH_PATH}"
         curl -fsS "$${API_URL}${_API_HEALTH_PATH}" | head -c 400
+=======
+=======
+>>>>>>> Stashed changes
+      - -c
+      - |
+        set -euo pipefail
+        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
+        echo "Checking $API_URL${_API_HEALTH_PATH}"
+        curl -fsS "$API_URL${_API_HEALTH_PATH}" | head -c 400
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 
   - id: "health: compute"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
       - -euxo
       - pipefail
       - -c
@@ -151,10 +258,27 @@ steps:
         curl -fsS "$${COMPUTE_URL}${_COMPUTE_HEALTH_PATH}" | head -c 400
 
   # Smoke tests (API) — configurable & non-blocking (warn on 4xx/5xx)
+=======
+=======
+>>>>>>> Stashed changes
+      - -c
+      - |
+        set -euo pipefail
+        COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
+        echo "Checking $COMPUTE_URL${_COMPUTE_HEALTH_PATH}"
+        curl -fsS "$COMPUTE_URL${_COMPUTE_HEALTH_PATH}" | head -c 400
+
+  # Smoke tests (warn-only; configure _SMOKE_PATHS)
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
   - id: "smoke: api (warn-only)"
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
       - -eo
       - pipefail
       - -c
@@ -171,6 +295,28 @@ steps:
         done
         if [ "$${FAIL}" -ne 0 ]; then
           echo "Smoke warnings: one or more endpoints returned non-2xx. Continuing pipeline."
+=======
+=======
+>>>>>>> Stashed changes
+      - -c
+      - |
+        set -eo pipefail
+        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
+        SMOKE_PATHS="${_SMOKE_PATHS}"
+        echo "Running smoke checks on: $SMOKE_PATHS"
+        FAIL=0
+        for p in $SMOKE_PATHS; do
+          URL="$API_URL$p"
+          CODE="$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo 000)"
+          echo "SMOKE $p -> HTTP $CODE"
+          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 400 ]; then :; else FAIL=1; fi
+        done
+        if [ "$FAIL" -ne 0 ]; then
+          echo "Smoke warnings: one or more endpoints returned non-2xx. Continuing."
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
         fi
 
   # Summary
@@ -178,10 +324,22 @@ steps:
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: bash
     args:
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
       - -euxo
       - pipefail
       - -c
       - |
+=======
+      - -c
+      - |
+        set -euo pipefail
+>>>>>>> Stashed changes
+=======
+      - -c
+      - |
+        set -euo pipefail
+>>>>>>> Stashed changes
         echo "------ Deployment Summary ------"
         echo "Project: ${PROJECT_ID}"
         echo "Branch:  ${BRANCH_NAME}"
@@ -191,13 +349,35 @@ steps:
         echo "  Compute: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"
         API_URL="$(sed 's/^API_URL=//' api_url.txt)"
         COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
         echo "API URL:      $${API_URL}"
         echo "Compute URL:  $${COMPUTE_URL}"
+=======
+        echo "API URL:      $API_URL"
+        echo "Compute URL:  $COMPUTE_URL"
+>>>>>>> Stashed changes
+=======
+        echo "API URL:      $API_URL"
+        echo "Compute URL:  $COMPUTE_URL"
+>>>>>>> Stashed changes
         echo "Environment:  ${_ENV}"
         echo "-------------------------------"
 
 artifacts:
   objects:
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+=======
+    # Make sure this bucket exists and CB SA has storage.objectAdmin:
+    #   gsutil mb -l us-central1 gs://${PROJECT_ID}-cloudbuild-artifacts
+    #   gsutil iam ch serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com:roles/storage.objectAdmin gs://${PROJECT_ID}-cloudbuild-artifacts
+>>>>>>> Stashed changes
+=======
+    # Make sure this bucket exists and CB SA has storage.objectAdmin:
+    #   gsutil mb -l us-central1 gs://${PROJECT_ID}-cloudbuild-artifacts
+    #   gsutil iam ch serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com:roles/storage.objectAdmin gs://${PROJECT_ID}-cloudbuild-artifacts
+>>>>>>> Stashed changes
     location: "gs://${PROJECT_ID}-cloudbuild-artifacts/goldmind/${BRANCH_NAME}/${SHORT_SHA}"
     paths:
       - "api_url.txt"
