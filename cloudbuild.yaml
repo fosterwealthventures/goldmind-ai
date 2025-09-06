@@ -25,11 +25,11 @@ steps:
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
-      - -c
-      - |
-        set -e
-        REG_HOST="$(echo "$_IMAGE" | awk -F/ '{print $1}')"
-        gcloud auth configure-docker "$REG_HOST" -q
+    - -c
+    - |
+      set -e
+      gcloud auth configure-docker "$(echo "$_IMAGE" | awk -F/ '{print $1}')" -q
+
 
   # 2) Build the image (Dockerfile in api/)
   - id: "build: docker image"
