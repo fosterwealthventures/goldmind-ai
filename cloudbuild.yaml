@@ -1,205 +1,107 @@
-# Cloud Build for GoldMIND AI — builds & deploys API + Compute to Cloud Run
-# - Separate build contexts: api/ and compute/
-# - Uses Cloud SDK image for steps that need gcloud/curl
-# - Grace wait after deploy
-# - Health checks (blocking) + configurable smoke checks (warn-only)
-# - Uploads service URLs as artifacts to GCS bucket: gs://${PROJECT_ID}-cloudbuild-artifacts/...
+# cloudbuild.yaml
+# Build & deploy GoldMIND API to Cloud Run, then smoke-test and print a summary.
+
+substitutions:
+  # ---- You can override these in the trigger if you want ----
+  _REGION: us-central1
+  _SERVICE: goldmind-api
+  # Image path in Artifact Registry (adjust repo name if yours differs)
+  _IMAGE: us-central1-docker.pkg.dev/$PROJECT_ID/goldmind-api/api:${SHORT_SHA}
+
+  # Optional URLs you were referencing—now valid custom subs (start with "_").
+  # If you don’t need them, they won’t break the build.
+  _API_URL: https://api.fwvgoldmindai.com
+  _COMPUTE_URL: https://goldmind-api-884387776097.us-central1.run.app
+
+options:
+  # Allow unused/undefined custom substitutions without failing the build.
+  substitutionOption: ALLOW_LOOSE
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
 
 timeout: "1200s"
 
-substitutions:
-  _REGION: "us-central1"
-  _REPO: "goldmind-api"                 # Artifact Registry repository (docker)
-  _IMAGE_API: "goldmind-api"            # Image name for API
-  _IMAGE_COMPUTE: "goldmind-compute"    # Image name for Compute
-  _SERVICE_API: "goldmind-api"          # Cloud Run service (API)
-  _SERVICE_COMPUTE: "goldmind-compute"  # Cloud Run service (Compute)
-  _ENV: "prod"
-  _GRACE_SECONDS: "45"
-  _API_HEALTH_PATH: "/health"
-  _COMPUTE_HEALTH_PATH: "/health"
-  _CPU: "1"
-  _MEM: "512Mi"
-  _MIN_INSTANCES: "0"
-  _MAX_INSTANCES: "4"
-  _CONCURRENCY: "80"
-  _PORT: "8080"
-  # Adjust to your real public routes (space-separated). These are warn-only.
-  _SMOKE_PATHS: "/api/summary /api/market/gold/spot /api/insights/structural"
-
-options:
-  logging: CLOUD_LOGGING_ONLY
-  substitution_option: ALLOW_LOOSE
-
 steps:
-  # Build API (context = api/)
-  - id: "build: api"
-    name: "gcr.io/cloud-builders/docker"
+  # 1) Configure Docker to push to Artifact Registry
+  - id: "auth: configure docker for AR"
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud auth configure-docker $(echo "$_IMAGE" | awk -F/ '{print $1}') -q
+
+  # 2) Build the image (Dockerfile path: api/Dockerfile)
+  - id: "build: docker image"
+    name: gcr.io/cloud-builders/docker
     args:
       - build
       - --file=api/Dockerfile
-      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}
-      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest
-      - api
+      - --tag=$_IMAGE
+      - .
 
-  - id: "push: api (sha)"
-    name: "gcr.io/cloud-builders/docker"
-    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}"]
+  # 3) Push the image
+  - id: "push: artifact registry"
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "$_IMAGE"]
 
-  - id: "push: api (latest)"
-    name: "gcr.io/cloud-builders/docker"
-    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest"]
-
-  # Build Compute (context = compute/)
-  - id: "build: compute"
-    name: "gcr.io/cloud-builders/docker"
+  # 4) Deploy to Cloud Run (keeps existing env vars unless you --set-env-vars here)
+  - id: "deploy: cloud run"
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
     args:
-      - build
-      - --file=compute/Dockerfile
-      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}
-      - --tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest
-      - compute
+      - -c
+      - |
+        gcloud run deploy "$_SERVICE" \
+          --region "$_REGION" \
+          --platform managed \
+          --image "$_IMAGE" \
+          --allow-unauthenticated
+        # Capture the live URL for smoke tests
+        URL="$(gcloud run services describe "$_SERVICE" --region "$_REGION" --format='value(status.url)')"
+        echo "SERVICE_URL=${URL}" > /workspace/deploy.env
+        echo "IMAGE=$_IMAGE" >> /workspace/deploy.env
 
-  - id: "push: compute (sha)"
-    name: "gcr.io/cloud-builders/docker"
-    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"]
-
-  - id: "push: compute (latest)"
-    name: "gcr.io/cloud-builders/docker"
-    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest"]
-
-  # Deploy API
-  - id: "deploy: api"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+  # 5) Wait for rollout and smoke test /health
+  - id: "test: /health"
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
       - -c
       - |
         set -euo pipefail
-        gcloud run deploy "${_SERVICE_API}" \
-          --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}" \
-          --region="${_REGION}" --platform=managed --allow-unauthenticated \
-          --port="${_PORT}" --cpu="${_CPU}" --memory="${_MEM}" \
-          --min-instances="${_MIN_INSTANCES}" --max-instances="${_MAX_INSTANCES}" \
-          --concurrency="${_CONCURRENCY}" \
-          --set-env-vars="ENV=${_ENV}" \
-          --quiet
-
-  # Deploy Compute
-  - id: "deploy: compute"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        set -euo pipefail
-        gcloud run deploy "${_SERVICE_COMPUTE}" \
-          --image="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}" \
-          --region="${_REGION}" --platform=managed --allow-unauthenticated \
-          --port="${_PORT}" --cpu="${_CPU}" --memory="${_MEM}" \
-          --min-instances="${_MIN_INSTANCES}" --max-instances="${_MAX_INSTANCES}" \
-          --concurrency="${_CONCURRENCY}" \
-          --set-env-vars="ENV=${_ENV}" \
-          --quiet
-
-  # Grace wait for rollout / cold start
-  - id: "wait: grace"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
-    entrypoint: bash
-    args: ["-c", "sleep ${_GRACE_SECONDS}"]
-
-  # Resolve service URLs and persist as artifacts
-  - id: "resolve: urls"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        set -euo pipefail
-        API_URL="$(gcloud run services describe "${_SERVICE_API}" --region "${_REGION}" --format='value(status.url)')"
-        COMPUTE_URL="$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format='value(status.url)')"
-        echo "API_URL=$API_URL" | tee api_url.txt
-        echo "COMPUTE_URL=$COMPUTE_URL" | tee compute_url.txt
-
-  # Health checks (blocking)
-  - id: "health: api"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        set -euo pipefail
-        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
-        echo "Checking $API_URL${_API_HEALTH_PATH}"
-        curl -fsS "$API_URL${_API_HEALTH_PATH}" | head -c 400
-
-  - id: "health: compute"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        set -euo pipefail
-        COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
-        echo "Checking $COMPUTE_URL${_COMPUTE_HEALTH_PATH}"
-        curl -fsS "$COMPUTE_URL${_COMPUTE_HEALTH_PATH}" | head -c 400
-
-  # Smoke tests (warn-only; configure _SMOKE_PATHS)
-  - id: "smoke: api (warn-only)"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        set -eo pipefail
-        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
-        SMOKE_PATHS="${_SMOKE_PATHS}"
-        echo "Running smoke checks on: $SMOKE_PATHS"
-        FAIL=0
-        for p in $SMOKE_PATHS; do
-          URL="$API_URL$p"
-          CODE="$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo 000)"
-          echo "SMOKE $p -> HTTP $CODE"
-          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 400 ]; then :; else FAIL=1; fi
+        source /workspace/deploy.env
+        echo "Waiting for service to become ready..."
+        # Simple retry loop
+        for i in {1..20}; do
+          if curl -fsS "${SERVICE_URL}/health" >/dev/null 2>&1; then
+            echo "Health check OK"
+            exit 0
+          fi
+          sleep 5
         done
-        if [ "$FAIL" -ne 0 ]; then
-          echo "Smoke warnings: one or more endpoints returned non-2xx. Continuing."
-        fi
+        echo "Health check FAILED"
+        curl -i "${SERVICE_URL}/health" || true
+        exit 1
 
-  # Summary
+  # 6) Summary
   - id: "summary"
-    name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
       - -c
       - |
-        set -euo pipefail
-        echo "------ Deployment Summary ------"
-        echo "Project: ${PROJECT_ID}"
-        echo "Branch:  ${BRANCH_NAME}"
-        echo "Commit:  ${COMMIT_SHA}"
-        echo "Images:"
-        echo "  API:     ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}"
-        echo "  Compute: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"
-        API_URL="$(sed 's/^API_URL=//' api_url.txt)"
-        COMPUTE_URL="$(sed 's/^COMPUTE_URL=//' compute_url.txt)"
-        echo "API URL:      $API_URL"
-        echo "Compute URL:  $COMPUTE_URL"
-        echo "Environment:  ${_ENV}"
-        echo "-------------------------------"
-
-artifacts:
-  objects:
-    # Make sure this bucket exists and CB SA has storage.objectAdmin:
-    #   gsutil mb -l us-central1 gs://${PROJECT_ID}-cloudbuild-artifacts
-    #   gsutil iam ch serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com:roles/storage.objectAdmin gs://${PROJECT_ID}-cloudbuild-artifacts
-    location: "gs://${PROJECT_ID}-cloudbuild-artifacts/goldmind/${BRANCH_NAME}/${SHORT_SHA}"
-    paths:
-      - "api_url.txt"
-      - "compute_url.txt"
+        source /workspace/deploy.env
+        echo "--------------------------------------------------"
+        echo " GoldMIND API – Deploy Summary"
+        echo " Project:     ${PROJECT_ID}"
+        echo " Region:      ${_REGION}"
+        echo " Service:     ${_SERVICE}"
+        echo " Service URL: ${SERVICE_URL}"
+        echo " Image:       ${IMAGE}"
+        echo " API URL:     ${_API_URL}"
+        echo " Compute URL: ${_COMPUTE_URL}"
+        echo "--------------------------------------------------"
 
 images:
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:${SHORT_SHA}"
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_API}:latest"
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:${SHORT_SHA}"
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE_COMPUTE}:latest"
+  - "$_IMAGE"
