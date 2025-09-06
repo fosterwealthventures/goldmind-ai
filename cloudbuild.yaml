@@ -2,11 +2,11 @@
 # Build & deploy GoldMIND API to Cloud Run, then smoke-test and print a summary.
 
 substitutions:
-  # ---- You can override these in your Trigger if desired ----
   _REGION: us-central1
   _SERVICE: goldmind-api
-  _AR_REPO: goldmind                                  # Artifact Registry repo name
-  _IMAGE: us-central1-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/api:${SHORT_SHA}
+  _AR_REPO: goldmind
+  _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/api:${SHORT_SHA}
+
 
   # Optional URLs (kept as valid custom subs). Safe if unused thanks to ALLOW_LOOSE.
   _API_URL: https://api.fwvgoldmindai.com
@@ -60,8 +60,8 @@ steps:
           --allow-unauthenticated
 
         URL="$(gcloud run services describe "$_SERVICE" --region "$_REGION" --format='value(status.url)')"
-        echo "SVC_URL=$${URL}" > /workspace/deploy.env
-        echo "SERVICE_IMAGE=$_IMAGE" >> /workspace/deploy.env   # avoid IMAGE later
+        echo "SERVICE_URL=$${URL}" > /workspace/deploy.env
+        echo "SERVICE_IMAGE=$_IMAGE" > /workspace/deploy.env  # avoid IMAGE later
 
   # 5) Wait for rollout readiness via /health
   - id: "wait: /health ready"
@@ -74,14 +74,14 @@ steps:
         source /workspace/deploy.env
         echo "Waiting for service to pass /health ..."
         for i in {1..30}; do
-            if curl -fsS "$${SVC_URL}/health" >/dev/null 2>&1; then
+            if curl -fsS "$${SERVICE_URL}/health" >/dev/null 2>&1; then
             echo "Health check OK"
             exit 0
           fi
           sleep 5
         done
         echo "Health check FAILED (timeout)"
-        curl -i "$${SVC_URL}/health" || true
+        curl -i "${SERVICE_URL}/health" || true
         exit 1
 
   # 6) Smoke tests (script lives at repo root: ./smoke.sh)
@@ -95,7 +95,7 @@ steps:
         source /workspace/deploy.env
         chmod +x smoke.sh
         apt-get update >/dev/null && apt-get install -y --no-install-recommends jq >/dev/null
-        ./scripts/smoke.sh "$${SVC_URL}"   # or use "${_API_URL}" if you prefer the custom domain
+        ./scripts/smoke.sh "$${SERVICE_URL}"   # or use "${_API_URL}" if you prefer the custom domain
 
   # 7) Summary
   - id: "summary"
@@ -110,7 +110,7 @@ steps:
         echo " Project:     ${PROJECT_ID}"
         echo " Region:      ${_REGION}"
         echo " Service:     ${_SERVICE}"
-        echo " Service URL: $${SVC_URL}"
+        echo " Service URL: $${SERVICE_URL}"
         echo " Image:       $${SERVICE_IMAGE}"
         echo " API URL:     ${_API_URL}"
         echo " Compute URL: ${_COMPUTE_URL}"
