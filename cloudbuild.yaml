@@ -61,7 +61,7 @@ steps:
 
         URL="$(gcloud run services describe "$_SERVICE" --region "$_REGION" --format='value(status.url)')"
         echo "SERVICE_URL=$${URL}" > /workspace/deploy.env
-        echo "SERVICE_IMAGE=$_IMAGE" >> /workspace/deploy.env   # avoid ${IMAGE} later
+        echo "SERVICE_IMAGE=$_IMAGE" >> /workspace/deploy.env   # avoid IMAGE later
 
   # 5) Wait for rollout readiness via /health
   - id: "wait: /health ready"
