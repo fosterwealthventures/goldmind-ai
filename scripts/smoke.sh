@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_URL="${1:?usage: ./scripts/smoke.sh <api-url>}"
+API_URL="${1:?usage: ./smoke.sh <api-url>}"
 echo "Testing API: $API_URL"
 
 echo "# /health"
