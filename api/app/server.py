@@ -1,140 +1,108 @@
 # api/app/server.py
 from __future__ import annotations
 
-import os
-from datetime import datetime, timezone
-from typing import Dict, Iterable
+from typing import List, Optional, Dict, Any
 
-import httpx
-from fastapi import FastAPI, HTTPException, Request, Response
-from starlette.status import HTTP_200_OK
+from fastapi import FastAPI, Request, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-# -----------------------
-# Configuration (env vars)
-# -----------------------
-SERVICE_NAME = os.getenv("SERVICE_NAME", "goldmind-api")
-APP_VERSION = os.getenv("APP_VERSION", "v1.2.1-insights")
-ENV = os.getenv("ENV", "prod")
+APP_NAME = "GoldMIND AI"
+APP_VERSION = "v1"
 
-# Compute wiring
-COMPUTE_URL = (os.getenv("COMPUTE_URL", "") or "").rstrip("/")
-INTERNAL_SHARED_SECRET = os.getenv("INTERNAL_SHARED_SECRET")
+app = FastAPI(title=APP_NAME, version=APP_VERSION)
 
-# Optional: limit which internal paths can be proxied (comma-separated)
-# e.g. "health,job/run,predict"
-ALLOWED_COMPUTE_PATHS: set[str] = set(
-    p.strip() for p in os.getenv("COMPUTE_ALLOWED_PATHS", "health").split(",") if p.strip()
+# ---- CORS (loose now; restrict in prod if needed) ----
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# -------------
-# App lifecycle
-# -------------
-from contextlib import asynccontextmanager
+# ---- Models ----
+class PredictPayload(BaseModel):
+    symbol: str
+    horizon: str
+    amount: float
+    style: Optional[str] = None
+    indicators: Optional[List[str]] = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # One shared outbound HTTP client for the process
-    app.state.http = httpx.AsyncClient(timeout=30)
-    try:
-        yield
-    finally:
-        await app.state.http.aclose()
+# ---- Basic routes ----
+@app.get("/health")
+async def health() -> Dict[str, Any]:
+    return {"status": "ok", "service": "goldmind-api", "version": APP_VERSION}
 
-app = FastAPI(title=SERVICE_NAME, version=APP_VERSION, lifespan=lifespan)
+@app.get("/")
+async def index() -> List[str]:
+    return [
+        "/health",
+        "/predict",
+        "/compute/{path}",
+        # Aliases (for setups that mount behind an /api prefix)
+        "/api/predict",
+        "/api/compute/{path}",
+    ]
 
-# ----------------
-# Helper functions
-# ----------------
-def now_iso() -> str:
-    return datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-def _require_compute_config() -> None:
-    if not COMPUTE_URL or not INTERNAL_SHARED_SECRET:
-        raise HTTPException(
-            status_code=500,
-            detail="COMPUTE_URL or INTERNAL_SHARED_SECRET not configured on API service.",
-        )
-
-HOP_BY_HOP_HEADERS: Iterable[str] = {
-    "connection",
-    "keep-alive",
-    "proxy-authenticate",
-    "proxy-authorization",
-    "te",
-    "trailer",
-    "transfer-encoding",
-    "upgrade",
-}
-
-def _passthrough_headers(src: Dict[str, str]) -> Dict[str, str]:
-    # Drop hop-by-hop headers; keep everything else
-    return {k: v for k, v in src.items() if k.lower() not in HOP_BY_HOP_HEADERS}
-
-# -------
-# Routes
-# -------
-@app.get("/health", status_code=HTTP_200_OK)
-async def health() -> dict:
+# ---- Core prediction handler ----
+async def _do_predict(payload: PredictPayload, x_api_key: Optional[str]) -> Dict[str, Any]:
+    # TODO: swap in your real model + data fusion here
     return {
-        "env": ENV,
-        "service": SERVICE_NAME,
-        "status": "ok",
-        "version": APP_VERSION,
-        "time": now_iso(),
+        "input": payload.model_dump(),
+        "prediction": {"signal": "hold", "confidence": 0.50},
+        "explanations": {
+            "macro": [k for k in (payload.indicators or []) if k in {
+                "dxy_corr", "real_yields", "cot", "miners", "vix_corr",
+            }]
+        },
     }
 
-@app.get("/version", include_in_schema=False)
-async def version() -> dict:
-    return {"service": SERVICE_NAME, "version": APP_VERSION}
+@app.post("/predict")
+async def predict(payload: PredictPayload, x_api_key: Optional[str] = Header(default=None)):
+    return await _do_predict(payload, x_api_key)
 
-# Admin check that the API can reach Compute's internal health
-@app.get("/admin/compute/health")
-async def admin_compute_health():
-    _require_compute_config()
-    url = f"{COMPUTE_URL}/internal/health"
-    async with app.state.http as client:
-        r = await client.get(url, headers={"X-Internal-Secret": INTERNAL_SHARED_SECRET})
-    if r.status_code >= 400:
-        raise HTTPException(r.status_code, f"Compute health check failed: {r.text}")
-    return r.json()
+# Back-compat & prefix aliases (not in schema to avoid clutter)
+@app.post("/predict/", include_in_schema=False)
+async def predict_trailing(payload: PredictPayload, x_api_key: Optional[str] = Header(default=None)):
+    return await _do_predict(payload, x_api_key)
 
-# Minimal, guarded proxy → Compute internal routes.
-# Example: GET /compute/health  ->  GET {COMPUTE_URL}/internal/health
-@app.api_route("/compute/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
-async def compute_proxy(path: str, request: Request):
-    _require_compute_config()
+@app.post("/api/predict", include_in_schema=False)
+async def predict_api_alias(payload: PredictPayload, x_api_key: Optional[str] = Header(default=None)):
+    return await _do_predict(payload, x_api_key)
 
-    # Restrict to a small allowlist to avoid becoming an open proxy
-    # (Customize with COMPUTE_ALLOWED_PATHS env var)
-    normalized = path.strip("/")
-    if normalized not in ALLOWED_COMPUTE_PATHS:
-        raise HTTPException(403, f"Path '{path}' not allowed")
+# ---- Compute proxy (and its /api alias) ----
+ALLOWED_COMPUTE_HEADS = {
+    "predict",
+    # Add other heads when you’re ready:
+    # "spot", "series", "summary", "structural", "midlayer", "blended",
+}
 
-    target = f"{COMPUTE_URL}/internal/{normalized}"
-    # Forward body and query string; set internal auth header
-    body = await request.body()
-    headers = _passthrough_headers(dict(request.headers))
-    headers["X-Internal-Secret"] = INTERNAL_SHARED_SECRET
+async def _compute_proxy_impl(path: str, request: Request, x_api_key: Optional[str]):
+    head = (path or "").strip("/").split("/")[0] if path else ""
+    if head not in ALLOWED_COMPUTE_HEADS:
+        raise HTTPException(status_code=404, detail=f"Path '{head or path}' not allowed")
 
-    async with app.state.http as client:
-        r = await client.request(
-            method=request.method,
-            url=target,
-            content=body if body else None,
-            headers=headers,
-            params=dict(request.query_params),
-        )
+    if head == "predict":
+        if request.method != "POST":
+            raise HTTPException(status_code=405, detail="Method not allowed; use POST")
+        try:
+            payload_json = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON body")
+        try:
+            payload = PredictPayload(**payload_json)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Bad payload: {e}")
+        return await _do_predict(payload, x_api_key)
 
-    # Build a FastAPI Response with upstream content & status
-    content_type = r.headers.get("content-type", "application/octet-stream")
-    return Response(content=r.content, status_code=r.status_code, media_type=content_type)
+    # Fallback (shouldn’t be reached due to guard)
+    raise HTTPException(status_code=404, detail=f"Unhandled compute path '{head}'")
 
-# Local dev convenience
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "server:app",
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", "8000")),
-        reload=bool(os.getenv("DEV_RELOAD", "")),
-    )
+@app.api_route("/compute/{path:path}", methods=["GET", "POST"])
+async def compute_proxy(path: str, request: Request, x_api_key: Optional[str] = Header(default=None)):
+    return await _compute_proxy_impl(path, request, x_api_key)
+
+@app.api_route("/api/compute/{path:path}", methods=["GET", "POST"], include_in_schema=False)
+async def compute_proxy_api_alias(path: str, request: Request, x_api_key: Optional[str] = Header(default=None)):
+    return await _compute_proxy_impl(path, request, x_api_key)

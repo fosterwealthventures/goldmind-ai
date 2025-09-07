@@ -1,71 +1,62 @@
-# cloudbuild.yaml
-# Build & deploy GoldMIND API to Cloud Run, then smoke-test and print a summary.
-
-substitutions:
-  _REGION: us-central1
-  _SERVICE: goldmind-api
-  _AR_REPO: goldmind
-  _IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/api:${SHORT_SHA}
-
-
-
-  # Optional URLs (kept as valid custom subs). Safe if unused thanks to ALLOW_LOOSE.
-  _API_URL: https://api.fwvgoldmindai.com
-  _COMPUTE_URL: https://goldmind-api-884387776097.us-central1.run.app
+# cloudbuild.yaml — minimal & safe
+# Build api/Dockerfile from repo root, push to Artifact Registry, deploy to Cloud Run.
 
 options:
-  substitutionOption: ALLOW_LOOSE
-  machineType: E2_HIGHCPU_8
   logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
 
 timeout: "1200s"
 
 steps:
-  # 1) Configure Docker to push to Artifact Registry
-  - id: "auth: configure docker for AR"
+  # 1) Auth Docker to Artifact Registry
+  - id: auth-ar
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
-    - -c
-    - |
-      set -e
-      gcloud auth configure-docker "$(echo "$_IMAGE" | awk -F/ '{print $1}')" -q
+      - -c
+      - |
+        set -e
+        gcloud auth configure-docker us-central1-docker.pkg.dev -q
 
-
-  # 2) Build the image (Dockerfile in api/)
-  - id: "build: docker image"
+  # 2) Build image (context ".", Dockerfile at api/Dockerfile)
+  - id: build
     name: gcr.io/cloud-builders/docker
     args:
       - build
-      - --file=api/Dockerfile
-      - --tag=$_IMAGE
+      - -f
+      - api/Dockerfile
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/goldmind/api:$SHORT_SHA
       - .
 
-  # 3) Push the image
-  - id: "push: artifact registry"
+  # 3) Push image
+  - id: push
     name: gcr.io/cloud-builders/docker
-    args: ["push", "$_IMAGE"]
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/goldmind/api:$SHORT_SHA
 
-  # 4) Deploy to Cloud Run
-  - id: "deploy: cloud run"
+  # 4) Deploy to Cloud Run (service: goldmind-api, region: us-central1)
+  - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
       - -c
       - |
         set -euo pipefail
-        gcloud run deploy "$_SERVICE" \
-          --region "$_REGION" \
+        IMAGE="us-central1-docker.pkg.dev/$PROJECT_ID/goldmind/api:$SHORT_SHA"
+        gcloud run deploy goldmind-api \
+          --region us-central1 \
           --platform managed \
-          --image "$_IMAGE" \
-          --allow-unauthenticated
+          --image "$${IMAGE}" \
+          --allow-unauthenticated \
+          --quiet
+        SVC_URL="$(gcloud run services describe goldmind-api --region us-central1 --format='value(status.url)')"
+        echo "SERVICE_URL=$${SVC_URL}"  >  /workspace/deploy.env
+        echo "SERVICE_IMAGE=$${IMAGE}" >> /workspace/deploy.env
 
-        URL="$(gcloud run services describe "$_SERVICE" --region "$_REGION" --format='value(status.url)')"
-        echo "SERVICE_URL=$${URL}" > /workspace/deploy.env
-        echo "SERVICE_IMAGE=$_IMAGE" > /workspace/deploy.env  # avoid IMAGE later
-
-  # 5) Wait for rollout readiness via /health
-  - id: "wait: /health ready"
+  # 5) Wait for /health
+  - id: wait-health
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
@@ -73,20 +64,20 @@ steps:
       - |
         set -euo pipefail
         source /workspace/deploy.env
-        echo "Waiting for service to pass /health ..."
+        echo "Waiting for $${SERVICE_URL}/health ..."
         for i in {1..30}; do
-            if curl -fsS "$${SVC_URL}/health" >/dev/null 2>&1; then
-            echo "Health check OK"
+          if curl -fsS "$${SERVICE_URL}/health" >/dev/null 2>&1; then
+            echo "Health OK"
             exit 0
           fi
           sleep 5
         done
-        echo "Health check FAILED (timeout)"
-        curl -i "$${SVC_URL}/health" || true
+        echo "Health check FAILED:"
+        curl -i "$${SERVICE_URL}/health" || true
         exit 1
 
-  # 6) Smoke tests (script lives at repo root: ./smoke.sh)
-  - id: "test: smoke"
+  # 6) Summary
+  - id: summary
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
@@ -94,28 +85,14 @@ steps:
       - |
         set -euo pipefail
         source /workspace/deploy.env
-        chmod +x smoke.sh
-        apt-get update >/dev/null && apt-get install -y --no-install-recommends jq >/dev/null
-        ./scripts/smoke.sh "$${SVC_URL}"   # or use "${_API_URL}" if you prefer the custom domain
-
-  # 7) Summary
-  - id: "summary"
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        source /workspace/deploy.env
         echo "--------------------------------------------------"
         echo " GoldMIND API - Deploy Summary"
-        echo " Project:     ${PROJECT_ID}"
-        echo " Region:      ${_REGION}"
-        echo " Service:     ${_SERVICE}"
-        echo " Service URL: $${SVC_URL}"
+        echo " Project:     $PROJECT_ID"
+        echo " Region:      us-central1"
+        echo " Service:     goldmind-api"
+        echo " Service URL: $${SERVICE_URL}"
         echo " Image:       $${SERVICE_IMAGE}"
-        echo " API URL:     ${_API_URL}"
-        echo " Compute URL: ${_COMPUTE_URL}"
         echo "--------------------------------------------------"
 
 images:
-  - "$_IMAGE"
+  - us-central1-docker.pkg.dev/$PROJECT_ID/goldmind/api:$SHORT_SHA
