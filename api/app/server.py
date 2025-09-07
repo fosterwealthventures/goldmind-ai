@@ -97,21 +97,20 @@ async def predict_api_alias(
 
 
 # ---- Compute proxy (and its /api alias) ----
-# ---- Compute proxy (and its /api alias) ----
 ALLOWED_COMPUTE_HEADS = {
     "predict",
-    # Add more when ready: "spot", "series", "summary", "structural", "midlayer", "blended",
+    "spot",
+    "series",
+    "summary",
+    "structural",
+    "midlayer",
+    "blended",
 }
 
 async def _compute_proxy_impl(path: str, request: Request, x_api_key: Optional[str]):
-    """
-    Robust path parser:
-      - accepts /compute/predict and /compute/predict/
-      - ignores duplicate slashes/whitespace
-      - future-proof for /compute/<head>/...
-    """
+    # Normalize path and split into segments
     norm = (path or "").strip().strip("/")
-    segments = [seg for seg in norm.split("/") if seg]  # drop empty pieces
+    segments = [seg for seg in norm.split("/") if seg]
     head = segments[0] if segments else ""
 
     if head not in ALLOWED_COMPUTE_HEADS:
@@ -130,8 +129,8 @@ async def _compute_proxy_impl(path: str, request: Request, x_api_key: Optional[s
             raise HTTPException(status_code=422, detail=f"Bad payload: {e}")
         return await _do_predict(payload, x_api_key)
 
-    # Shouldn't reach here due to guard
     raise HTTPException(status_code=404, detail=f"Unhandled compute path '{head}'")
+
 
 # Make compute endpoints POST-only for clarity (GET not needed for predict)
 @app.post("/compute/{path:path}")
