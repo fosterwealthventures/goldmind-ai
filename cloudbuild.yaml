@@ -1,54 +1,60 @@
+# cloudbuild.yaml
 options:
   logging: CLOUD_LOGGING_ONLY
   machineType: E2_HIGHCPU_8
 timeout: "1200s"
 
 substitutions:
+  # Region & Artifact Registry repo (can reuse the same repo for both images)
   _REGION: us-central1
-  _SERVICE: goldmind-api
   _REPO: goldmind-api
 
+  # Folder paths in the repo
+  _API_PATH: api
+  _COMPUTE_PATH: compute
+
+  # Cloud Run service names
+  _SERVICE_API: goldmind-api
+  _SERVICE_COMPUTE: goldmind-compute
+
+  # Health paths (set _COMPUTE_HEALTH="" if your compute service has no HTTP health)
+  _API_HEALTH: /health
+  _COMPUTE_HEALTH: /health
+
 steps:
-  # (Optional) Ensure Docker is authenticated to Artifact Registry
+  # 00) Configure Docker for Artifact Registry
   - id: 00-configure-docker
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
-    args:
-      - -c
-      - |
-        set -euo pipefail
-        gcloud auth configure-docker ${_REGION}-docker.pkg.dev -q
+    args: ["-c", "set -euo pipefail; gcloud auth configure-docker ${_REGION}-docker.pkg.dev -q"]
 
-  # Build (context = api/)
-  - id: 01-build
+  # 01) Build API
+  - id: 01-build-api
     name: gcr.io/cloud-builders/docker
-    env:
-      - DOCKER_BUILDKIT=1
+    env: ["DOCKER_BUILDKIT=1"]
     args:
       - build
       - -f
-      - api/Dockerfile
+      - ${_API_PATH}/Dockerfile
       - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
-      - api
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_API}:$BUILD_ID
+      - ${_API_PATH}
 
-  # Push to Artifact Registry
-  - id: 02-push
+  # 02) Push API
+  - id: 02-push-api
     name: gcr.io/cloud-builders/docker
-    args:
-      - push
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_API}:$BUILD_ID"]
 
-  # Deploy to Cloud Run
-  - id: 03-deploy
+  # 03) Deploy API
+  - id: 03-deploy-api
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
       - -c
       - |
         set -euo pipefail
-        gcloud run deploy "${_SERVICE}" \
-          --image "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID" \
+        gcloud run deploy "${_SERVICE_API}" \
+          --image "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_API}:$BUILD_ID" \
           --region "${_REGION}" \
           --platform managed \
           --allow-unauthenticated \
@@ -57,36 +63,90 @@ steps:
           --concurrency=80 \
           --timeout=60
 
-  # Smoke check (/health)
-  - id: 04-smoke
+  # 04) Smoke /health (API)
+  - id: 04-smoke-api
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
       - -c
       - |
         set -euo pipefail
-        URL=$(gcloud run services describe "${_SERVICE}" --region "${_REGION}" --format='value(status.url)')
-        echo "Hitting $$URL/health ..."
-        curl -fsS "$$URL/health" >/dev/null
-        echo "Health check OK"
+        URL=$(gcloud run services describe "${_SERVICE_API}" --region "${_REGION}" --format='value(status.url)')
+        echo "Hitting ${URL}${_API_HEALTH} ..."
+        curl -fsS "${URL}${_API_HEALTH}" >/dev/null
+        echo "API health check OK"
 
-  # Summary
-  - id: 05-summary
+  # 05) Build COMPUTE
+  - id: 05-build-compute
+    name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
+    args:
+      - build
+      - -f
+      - ${_COMPUTE_PATH}/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID
+      - ${_COMPUTE_PATH}
+
+  # 06) Push COMPUTE
+  - id: 06-push-compute
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID"]
+
+  # 07) Deploy COMPUTE
+  - id: 07-deploy-compute
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
       - -c
       - |
         set -euo pipefail
-        URL=$(gcloud run services describe "${_SERVICE}" --region "${_REGION}" --format='value(status.url)')
-        printf "%s\n" \
-          "================================================" \
-          "Project:   $PROJECT_ID" \
-          "Region:    ${_REGION}" \
-          "Service:   ${_SERVICE}" \
-          "Image:     ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID" \
-          "Cloud Run: $$URL" \
-          "================================================"
+        gcloud run deploy "${_SERVICE_COMPUTE}" \
+          --image "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID" \
+          --region "${_REGION}" \
+          --platform managed \
+          --allow-unauthenticated \
+          --memory=1Gi \
+          --cpu=1 \
+          --concurrency=40 \
+          --timeout=60
+
+  # 08) Optional smoke /health (COMPUTE)
+  - id: 08-smoke-compute
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [ -n "${_COMPUTE_HEALTH}" ]; then
+          URL=$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format='value(status.url)')
+          echo "Hitting ${URL}${_COMPUTE_HEALTH} ..."
+          curl -fsS "${URL}${_COMPUTE_HEALTH}" >/dev/null
+          echo "Compute health check OK"
+        else
+          echo "Skipping compute health check (no _COMPUTE_HEALTH set)"
+        fi
+
+  # 09) Summary
+  - id: 09-summary
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        API_URL=$(gcloud run services describe "${_SERVICE_API}" --region "${_REGION}" --format='value(status.url)')
+        CMP_URL=$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format='value(status.url)')
+        printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n" \
+          "==================== DEPLOYED ====================" \
+          "Project:     $PROJECT_ID" \
+          "Region:      ${_REGION}" \
+          "API:         ${_SERVICE_API}  ->  ${API_URL}" \
+          "Compute:     ${_SERVICE_COMPUTE}  ->  ${CMP_URL}" \
+          "Images:      ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_API}:$BUILD_ID" \
+          "             ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID"
 
 images:
-  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_API}:$BUILD_ID
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID
