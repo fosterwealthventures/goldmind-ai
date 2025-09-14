@@ -1,31 +1,17 @@
+# Keep these in the upload
+!cloudbuild.yaml
+!api/**
+!requirements.txt
+!api/Dockerfile
 
-# .gcloudignore
-# Keep builds lean by excluding local artifacts and venvs
-
-.git/
-.gitignore
-**/__pycache__/
-**/*.pyc
-**/*.pyo
-**/*.pyd
-**/.Python
-**/.pytest_cache/
-**/.mypy_cache/
-**/.ruff_cache/
-**/.venv/
-**/venv/
-**/.DS_Store
-
-# Node / frontend stuff if present at repo root
-node_modules/
-dist/
-build/
-
-# Editor configs
-.vscode/
-.idea/
-
-.cache/
-.env
-.env.*
-
+# Typical excludes
+.git
+.vscode
+node_modules
+venv
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.log
+logs/
