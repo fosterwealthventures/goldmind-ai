@@ -35,8 +35,10 @@ steps:
   - id: 02-build-api
     name: gcr.io/cloud-builders/docker
     args:
-      ["build","-f","api/Dockerfile","-t","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA","."]
-
+    ["build",
+     "-f","api/Dockerfile",
+     "-t","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA",
+     "api"]
   - id: 03-build-compute
     name: gcr.io/cloud-builders/docker
     args:
