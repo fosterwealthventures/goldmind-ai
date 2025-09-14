@@ -27,31 +27,47 @@ substitutions:
   _STRICT_SMOKE: ${_STRICT_SMOKE}
 
 steps:
+ steps:
   - id: 01-auth-ar
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
-    args: ["-c", "set -e; gcloud auth configure-docker ${_REGION}-docker.pkg.dev -q"]
+    args:
+      - -c
+      - >
+        set -e;
+        gcloud auth configure-docker ${_REGION}-docker.pkg.dev -q
 
   - id: 02-build-api
     name: gcr.io/cloud-builders/docker
     args:
-    ["build",
-     "-f","api/Dockerfile",
-     "-t","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA",
-     "api"]
-     
+      - build
+      - -f
+      - api/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA
+      - api
+
   - id: 03-build-compute
     name: gcr.io/cloud-builders/docker
     args:
-      ["build","-f","compute/Dockerfile","-t","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA","."]
+      - build
+      - -f
+      - compute/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA
+      - compute
 
   - id: 04-push-api
     name: gcr.io/cloud-builders/docker
-    args: ["push","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA"]
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA
 
   - id: 05-push-compute
     name: gcr.io/cloud-builders/docker
-    args: ["push","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"]
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA
 
   - id: 06-deploy-api
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
