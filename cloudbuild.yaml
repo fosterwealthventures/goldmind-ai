@@ -1,21 +1,9 @@
-# cloudbuild.yaml — GoldMIND API + Compute with FULL endpoint smoke tests
+# cloudbuild.yaml — GoldMIND API + Compute with FULL endpoint smoke tests (escaped bash locals)
 
 options:
   logging: CLOUD_LOGGING_ONLY
   machineType: E2_HIGHCPU_8
 timeout: "1200s"
-
-# Trigger substitutions you set in the UI:
-#   _API_DOMAIN: https://api.fwvgoldmindai.com
-#   _ENV: prod
-#   _REGION: us-central1
-#   _SERVICE_API: goldmind-api
-#   _SERVICE_COMPUTE: goldmind-compute
-#   _USE_YFINANCE: "true"
-#   _ARTIFACT_REPO: goldmind
-# Optional:
-#   _REPO: goldmind-ai                       # labels only (not used in image paths)
-#   _STRICT_SMOKE: "true"                    # fail on any non-2xx (including 404)
 
 substitutions:
   _API_DOMAIN: ${_API_DOMAIN}
@@ -29,35 +17,29 @@ substitutions:
   _STRICT_SMOKE: ${_STRICT_SMOKE}
 
 steps:
-  # 01) Auth Docker to Artifact Registry
   - id: 01-auth-ar
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args: ["-c", "set -e; gcloud auth configure-docker ${_REGION}-docker.pkg.dev -q"]
 
-  # 02) Build API image
   - id: 02-build-api
     name: gcr.io/cloud-builders/docker
     args:
       ["build","-f","api/Dockerfile","-t","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA","."]
 
-  # 03) Build Compute image
   - id: 03-build-compute
     name: gcr.io/cloud-builders/docker
     args:
       ["build","-f","compute/Dockerfile","-t","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA","."]
 
-  # 04) Push API image
   - id: 04-push-api
     name: gcr.io/cloud-builders/docker
     args: ["push","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA"]
 
-  # 05) Push Compute image
   - id: 05-push-compute
     name: gcr.io/cloud-builders/docker
     args: ["push","${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"]
 
-  # 06) Deploy API (public)
   - id: 06-deploy-api
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
@@ -72,7 +54,6 @@ steps:
         --update-env-vars ENV=${_ENV},API_DOMAIN=${_API_DOMAIN},USE_YFINANCE=${_USE_YFINANCE}
         --timeout=300 --concurrency=80 --min-instances=0 --max-instances=4
 
-  # 07) Deploy Compute (private by default; smoke checks tolerate auth)
   - id: 07-deploy-compute
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
@@ -86,7 +67,6 @@ steps:
         --update-env-vars ENV=${_ENV}
         --timeout=300 --concurrency=20 --min-instances=0 --max-instances=2
 
-  # 08) Smoke test — API (STRICT, covers ALL endpoints in server.py)
   - id: 08-smoke-api
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
@@ -96,54 +76,48 @@ steps:
         set -euo pipefail
         API="${_API_DOMAIN}"
         STRICT="${_STRICT_SMOKE:-true}"
-        echo "API: $API  |  STRICT_SMOKE=$STRICT"
+        echo "API: $$API  |  STRICT_SMOKE=$$STRICT"
 
-        # wait for /health (handle cold start)
         for i in $(seq 1 24); do
-          if curl -fsS "$API/health" >/dev/null; then
+          if curl -fsS "$$API/health" >/dev/null; then
             echo "OK: /health"
             break
           fi
-          echo "Waiting for API /health (attempt $i)..."
+          echo "Waiting for API /health (attempt $$i)..."
           sleep 5
         done
-        curl -fsS "$API/health" >/dev/null || { echo "FAIL: /health never became ready"; exit 1; }
+        curl -fsS "$$API/health" >/dev/null || { echo "FAIL: /health never became ready"; exit 1; }
 
         pass_get () {
-          url="$1"
-          code=$(curl -sS -m 25 -o /dev/null -w "%{http_code}" "$url" || echo "000")
-          echo "GET $url  -> $code"
-          if [[ "$code" =~ ^20[0-9]$ ]]; then return 0; fi
-          if [ "$code" = "404" ] && [ "$STRICT" != "true" ]; then echo "WARN 404 (non-strict)"; return 0; fi
-          echo "FAIL $url ($code)"; return 1
+          url="$$1"
+          code=$(curl -sS -m 25 -o /dev/null -w "%{http_code}" "$$url" || echo "000")
+          echo "GET $$url  -> $$code"
+          if [[ "$$code" =~ ^20[0-9]$ ]]; then return 0; fi
+          if [ "$$code" = "404" ] && [ "$$STRICT" != "true" ]; then echo "WARN 404 (non-strict)"; return 0; fi
+          echo "FAIL $$url ($$code)"; return 1
         }
 
         pass_post () {
-          url="$1"; body="$2"; hdrs="$3"
-          if [ -n "$hdrs" ]; then HFLAG=(-H "$hdrs"); else HFLAG=(); fi
-          code=$(curl -sS -m 25 -o /dev/null -w "%{http_code}" -X POST "${HFLAG[@]}" -H "Content-Type: application/json" -d "$body" "$url" || echo "000")
-          echo "POST $url  -> $code"
-          if [[ "$code" =~ ^20[0-9]$ ]]; then return 0; fi
-          if [ "$code" = "404" ] && [ "$STRICT" != "true" ]; then echo "WARN 404 (non-strict)"; return 0; fi
-          echo "FAIL $url ($code)"; return 1
+          url="$$1"; body="$$2"; hdrs="$$3"
+          if [ -n "$$hdrs" ]; then HFLAG=(-H "$$hdrs"); else HFLAG=(); fi
+          code=$(curl -sS -m 25 -o /dev/null -w "%{http_code}" -X POST "${HFLAG[@]}" -H "Content-Type: application/json" -d "$$body" "$$url" || echo "000")
+          echo "POST $$url  -> $$code"
+          if [[ "$$code" =~ ^20[0-9]$ ]]; then return 0; fi
+          if [ "$$code" = "404" ] && [ "$$STRICT" != "true" ]; then echo "WARN 404 (non-strict)"; return 0; fi
+          echo "FAIL $$url ($$code)"; return 1
         }
 
-        # ----------------------------
-        # GET endpoints from server.py
-        # ----------------------------
         GETS=(
-          "/"                       # index
+          "/"
           "/health"
           "/api/health"
           "/docs"
           "/openapi.json"
-
           "/market/gold/series"
           "/market/gold/spot"
           "/market/gold/futures"
           "/market/gold/etf"
           "/market/gold/options"
-
           "/api/summary"
           "/v1/predict?symbol=XAUUSD"
           "/v1/bias?symbol=XAUUSD"
@@ -156,34 +130,28 @@ steps:
         )
 
         for ep in "${GETS[@]}"; do
-          pass_get "$API$ep"
+          pass_get "$$API$$ep"
         done
 
-        # ----------------------------
-        # POST endpoints from server.py
-        # ----------------------------
         BODY_PRED='{"symbol":"XAUUSD","horizon":"1d","amount":1.0,"indicators":["sma","ema","rsi"]}'
-        pass_post "$API/predict" "$BODY_PRED" ""
-        pass_post "$API/api/predict" "$BODY_PRED" ""
+        pass_post "$$API/predict" "$$BODY_PRED" ""
+        pass_post "$$API/api/predict" "$$BODY_PRED" ""
 
-        # Compute proxy (inside API service): allowed heads:
-        # predict, spot, series, summary, structural, midlayer, blended
-        pass_post "$API/compute/predict"  '{"symbol":"XAUUSD","horizon":"1d","amount":1.0}' ""
-        pass_post "$API/compute/summary"  '{}' ""
-        pass_post "$API/compute/structural" '{}' ""
-        pass_post "$API/compute/midlayer"   '{}' ""
-        pass_post "$API/compute/series"     '{}' ""
-        pass_post "$API/compute/blended"    '{}' ""
-        pass_post "$API/api/compute/predict"  '{"symbol":"XAUUSD","horizon":"1d","amount":1.0}' ""
-        pass_post "$API/api/compute/summary"  '{}' ""
-        pass_post "$API/api/compute/structural" '{}' ""
-        pass_post "$API/api/compute/midlayer"   '{}' ""
-        pass_post "$API/api/compute/series"     '{}' ""
-        pass_post "$API/api/compute/blended"    '{}' ""
+        pass_post "$$API/compute/predict"   '{"symbol":"XAUUSD","horizon":"1d","amount":1.0}' ""
+        pass_post "$$API/compute/summary"   '{}' ""
+        pass_post "$$API/compute/structural" '{}' ""
+        pass_post "$$API/compute/midlayer"   '{}' ""
+        pass_post "$$API/compute/series"     '{}' ""
+        pass_post "$$API/compute/blended"    '{}' ""
+        pass_post "$$API/api/compute/predict"   '{"symbol":"XAUUSD","horizon":"1d","amount":1.0}' ""
+        pass_post "$$API/api/compute/summary"   '{}' ""
+        pass_post "$$API/api/compute/structural" '{}' ""
+        pass_post "$$API/api/compute/midlayer"   '{}' ""
+        pass_post "$$API/api/compute/series"     '{}' ""
+        pass_post "$$API/api/compute/blended"    '{}' ""
 
         echo "All API endpoint checks passed."
 
-  # 09) Smoke test — Compute service /health
   - id: 09-smoke-compute
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
@@ -192,17 +160,16 @@ steps:
       - |
         set -euo pipefail
         URL=$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format="value(status.url)")
-        echo "Compute URL: $URL"
-        if [ -z "$URL" ]; then echo "WARN: No compute URL; skipping."; exit 0; fi
-        code=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" "$URL/health" || echo "000")
-        echo "GET $URL/health -> $code"
-        case "$code" in
+        echo "Compute URL: $$URL"
+        if [ -z "$$URL" ]; then echo "WARN: No compute URL; skipping."; exit 0; fi
+        code=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" "$$URL/health" || echo "000")
+        echo "GET $$URL/health -> $$code"
+        case "$$code" in
           200|204) echo "Compute health OK"; exit 0 ;;
           401|403) echo "NOTE: Compute private; auth required. Skipping."; exit 0 ;;
-          *) echo "FAIL: Compute /health returned $code"; exit 1 ;;
+          *) echo "FAIL: Compute /health returned $$code"; exit 1 ;;
         esac
 
-  # 10) Summary
   - id: 10-summary
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
@@ -214,9 +181,9 @@ steps:
         C=$(gcloud run services describe "${_SERVICE_COMPUTE}" --region "${_REGION}" --format="value(status.url)")
         echo "----- Deployment Summary -----"
         echo "API:           ${_SERVICE_API}"
-        echo "API URL:       ${API}"
+        echo "API URL:       $$API"
         echo "Compute:       ${_SERVICE_COMPUTE}"
-        echo "Compute URL:   ${C}"
+        echo "Compute URL:   $$C"
         echo "Image (API):     ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA"
         echo "Image (Compute): ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"
         echo "------------------------------"
