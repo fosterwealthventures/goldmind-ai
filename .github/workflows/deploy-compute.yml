@@ -1,72 +1,87 @@
-# .github/workflows/deploy-compute.yml (replace your build/push/deploy steps with this)
-name: Deploy Compute to Cloud Run
+name: deploy-compute
 
 on:
+  workflow_dispatch:
   push:
-    branches: ["main"]
-  workflow_dispatch: {}
-
-concurrency:
-  group: deploy-compute
-  cancel-in-progress: true
+    branches: [ main ]
+    paths:
+      - "compute/**"
+      - ".github/workflows/deploy-compute.yml"
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: ${{ secrets.GCP_REGION }}
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  ARTIFACT_REPO: ${{ secrets.ARTIFACT_REPO }}
+  IMAGE_NAME: compute
   SERVICE_NAME: goldmind-compute
-  IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/goldmind/compute:${{ github.sha }}
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Authenticate to GCP with the SA key you added
-      - uses: google-github-actions/setup-gcloud@v2
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-          export_default_credentials: true
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-      # Make sure Artifact Registry repo exists (idempotent)
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Sanity checks (variables & paths)
+        run: |
+          set -e
+          echo "GCP_PROJECT_ID=${GCP_PROJECT_ID}"
+          echo "GCP_REGION=${GCP_REGION}"
+          echo "ARTIFACT_REPO=${ARTIFACT_REPO}"
+          echo "SERVICE_NAME=${SERVICE_NAME}"
+          test -n "${GCP_PROJECT_ID}" && test -n "${GCP_REGION}" && test -n "${ARTIFACT_REPO}" || (echo "❌ Missing required secrets"; exit 1)
+          test -f ./compute/Dockerfile || (echo "❌ compute/Dockerfile not found"; ls -la ./compute; exit 1)
+
+      - name: gcloud info
+        run: |
+          gcloud config set project "${GCP_PROJECT_ID}"
+          gcloud auth list
+          gcloud config list
+          echo "Listing Artifact Registry repos in ${GCP_REGION}…"
+          gcloud artifacts repositories list --location="${GCP_REGION}" || true
+
       - name: Ensure Artifact Registry repo exists
         run: |
           set -e
-          REPO_NAME="goldmind"
-          gcloud artifacts repositories describe "$REPO_NAME" --location="$REGION" >/dev/null 2>&1 || \
-          gcloud artifacts repositories create "$REPO_NAME" \
-            --repository-format=docker \
-            --location="$REGION" \
-            --description="GoldMIND images"
+          if ! gcloud artifacts repositories describe "${ARTIFACT_REPO}" --location="${GCP_REGION}" >/dev/null 2>&1; then
+            echo "Creating repo ${ARTIFACT_REPO} in ${GCP_REGION}…"
+            gcloud artifacts repositories create "${ARTIFACT_REPO}" \
+              --repository-format=docker \
+              --location="${GCP_REGION}" \
+              --description="GoldMIND images"
+          else
+            echo "Repo ${ARTIFACT_REPO} already exists in ${GCP_REGION}."
+          fi
 
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev -q
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
-      # >>>>>> THE IMPORTANT CHANGE: use compute/ as the build context
-      - name: Build image (Dockerfile in compute/, context = compute/)
+      - name: Build & Push
         run: |
-          docker build -t "$IMAGE" -f Dockerfile .
-        working-directory: compute
+          set -e
+          IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPO}/${IMAGE_NAME}:${{ github.sha }}"
+          echo "IMAGE_URI=${IMAGE_URI}" >> $GITHUB_ENV
+          docker build -t "${IMAGE_URI}" ./compute
+          docker push "${IMAGE_URI}"
 
-      - name: Push image
-        run: docker push "$IMAGE"
-
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run (managed)
         run: |
-          gcloud run deploy "$SERVICE_NAME" \
-            --region "$REGION" \
-            --platform managed \
-            --image "$IMAGE" \
-            --allow-unauthenticated \
-            --quiet
-
-      - name: Verify /health
-        run: |
-          URL=$(gcloud run services describe "$SERVICE_NAME" --region "$REGION" --format='value(status.url)')
-          echo "Service URL: $URL"
-          for i in {1..30}; do
-            curl -fsS "$URL/health" && exit 0 || true
-            sleep 5
-          done
-          echo "Health check failed"; curl -i "$URL/health" || true; exit 1
+          gcloud run deploy "${SERVICE_NAME}" \
+            --image="${IMAGE_URI}" \
+            --region="${GCP_REGION}" \
+            --platform=managed \
+            --allow-unauthenticated
