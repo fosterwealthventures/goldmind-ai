@@ -141,6 +141,14 @@ async def v1_trace(id: str = Query(...)) -> Dict[str, Any]:
         {"name":"fetch_market","ok":True},{"name":"compute_features","ok":True},{"name":"model_infer","ok":True}
     ]}
 
+@app.get("/v1/risk")
+async def v1_risk() -> Dict[str, Any]:
+    return {
+        "risk_level": "medium",
+        "factors": ["liquidity", "volatility", "correlation"],
+        "score": 0.65
+    }
+
 # ---------- Compute proxy skeleton ----------
 ALLOWED_COMPUTE_HEADS = {"predict","spot","series","summary","structural","midlayer","blended"}
 

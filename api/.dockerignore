@@ -10,5 +10,14 @@ __pycache__/
 venv/
 .venv/
 
-# OS cruft
 .DS_Store
+api/.env*
+__pycache__/
+
+.env
+.env.*
+venv/
+node_modules/
+logs/
+.git/
+.vscode/
