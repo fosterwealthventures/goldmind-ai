@@ -8,9 +8,8 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: ${{ secrets.GCP_REGION }}
-  SERVICE_NAME: goldmind-api
-  REPO_NAME: goldmind
-  IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/goldmind/api:${{ github.sha }}
+  REPO_NAME: goldmind          # Artifact Registry repo name (docker)
+  SERVICE_NAME: goldmind-api   # Cloud Run service name
 
 jobs:
   deploy:
@@ -18,50 +17,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up gcloud
+      # ✅ Authenticate to GCP with your JSON key
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      # ✅ Install gcloud and set the project
+      - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-          export_default_credentials: true
 
+      # (Optional) sanity print
       - name: Who am I
         run: |
+          gcloud info
           gcloud config list
           gcloud auth list
 
+      # ✅ Ensure Artifact Registry exists (now that we're authed)
       - name: Ensure Artifact Registry repo exists
         run: |
-          gcloud artifacts repositories describe "$REPO_NAME" --location="$REGION" || \
-          gcloud artifacts repositories create "$REPO_NAME" \
-            --repository-format=docker --location="$REGION" -q
+          set -e
+          gcloud artifacts repositories describe "$REPO_NAME" --location="$REGION" \
+          || gcloud artifacts repositories create "$REPO_NAME" \
+               --repository-format=docker \
+               --location="$REGION" \
+               --description="GoldMIND images"
 
+      # ✅ Docker config for Artifact Registry
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${REGION}-docker.pkg.dev -q
 
-      # IMPORTANT: Build context is api/
-      - name: Build image (api/)
-        run: docker build -f api/Dockerfile -t "$IMAGE" api
-
-      - name: Push image
-        run: docker push "$IMAGE"
-
-      - name: Deploy to Cloud Run (API)
-        run: |
-          gcloud run deploy "$SERVICE_NAME" \
-            --region "$REGION" \
-            --platform managed \
-            --image "$IMAGE" \
-            --allow-unauthenticated \
-            --quiet
-
-      - name: Verify health (API)
-        run: |
-          set -e
-          URL=$(gcloud run services describe "$SERVICE_NAME" --region "$REGION" --format='value(status.url)')
-          echo "Service URL: $URL"
-          for p in /v1/health /health; do
-            echo "Probing $URL$p"
-            if curl -fsS "$URL$p"; then exit 0; fi
-          done
-          echo "Health check failed"; curl -i "$URL/health" || true; curl -i "$URL/v1/health" || true; exit 1
+      # ... keep your existing build/push/deploy/health steps here ...
