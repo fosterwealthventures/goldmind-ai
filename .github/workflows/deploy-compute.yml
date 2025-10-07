@@ -2,14 +2,15 @@ name: Deploy Compute to Cloud Run
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch: {}
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: ${{ secrets.GCP_REGION }}
   SERVICE_NAME: goldmind-compute
-  IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/goldmind/compute:${{ github.sha }}
+  REPO_NAME: goldmind
+  IMAGE: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/goldmind/compute:${{ github.sha }}
 
 jobs:
   deploy:
@@ -17,22 +18,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
           service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           export_default_credentials: true
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev -q
+      - name: Who am I
+        run: |
+          gcloud config list
+          gcloud auth list
 
-      - name: Build image (Dockerfile in compute/)
-        run: docker build -f compute/Dockerfile -t "$IMAGE" .
+      - name: Ensure Artifact Registry repo exists
+        run: |
+          gcloud artifacts repositories describe "$REPO_NAME" --location="$REGION" || \
+          gcloud artifacts repositories create "$REPO_NAME" \
+            --repository-format=docker --location="$REGION" -q
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${REGION}-docker.pkg.dev -q
+
+      # IMPORTANT: Build context is compute/
+      - name: Build image (compute/)
+        run: docker build -f compute/Dockerfile -t "$IMAGE" compute
 
       - name: Push image
         run: docker push "$IMAGE"
 
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run (Compute)
         run: |
           gcloud run deploy "$SERVICE_NAME" \
             --region "$REGION" \
@@ -41,12 +55,13 @@ jobs:
             --allow-unauthenticated \
             --quiet
 
-      - name: Verify /health
+      - name: Verify health (Compute)
         run: |
+          set -e
           URL=$(gcloud run services describe "$SERVICE_NAME" --region "$REGION" --format='value(status.url)')
           echo "Service URL: $URL"
-          for i in {1..30}; do
-            curl -fsS "$URL/health" && exit 0 || true
-            sleep 5
+          for p in /health /v1/health; do
+            echo "Probing $URL$p"
+            if curl -fsS "$URL$p"; then exit 0; fi
           done
-          echo "Health check failed"; curl -i "$URL/health" || true; exit 1
+          echo "Health check failed"; curl -i "$URL/health" || true; curl -i "$URL/v1/health" || true; exit 1
