@@ -1,34 +1,28 @@
-# netlify.toml — single-site static publish from /public
-
 [build]
   publish = "public"
-  command = ""          # static; leave blank (or set to your build cmd if needed)
+  command = ""
 
 [build.environment]
   NODE_VERSION = "20"
 
-# 1) Force HTTP → HTTPS
 [[redirects]]
   from = "http://*"
   to   = "https://:splat"
   status = 301
   force  = true
 
-# 2) API proxy (/api/* → API service)
 [[redirects]]
   from = "/api/*"
   to   = "https://api.fwvgoldmindai.com/:splat"
   status = 200
   force  = true
 
-# 3) Compute proxy (/compute/* → Compute service)
 [[redirects]]
   from = "/compute/*"
   to   = "https://goldmind-api-884387776097.us-central1.run.app/:splat"
   status = 200
   force  = true
 
-# 4) Convenience: add trailing slash
 [[redirects]]
   from = "/dashboard"
   to   = "/dashboard/"
