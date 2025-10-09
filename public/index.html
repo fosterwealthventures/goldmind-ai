@@ -120,16 +120,24 @@
     }
     
     .brand-logo{ width:130px; height:130px; }
-    .brand-kicker{ 
-      font-size:.75rem; 
-      letter-spacing:.05em; 
-      color: var(--soft); 
-      text-transform:uppercase; 
+    .brand-kicker{
+      font-size:1rem;
+      letter-spacing:.05em;
+      color: var(--soft);
+      text-transform:uppercase;
+      font-weight: 700;
     }
-    .brand-sub{ 
-      font-size:.8rem; 
-      color: var(--soft); 
-      margin-top:.1rem; 
+    .brand-sub{
+      font-size:.8rem;
+      color: var(--soft);
+      margin-top:.1rem;
+    }
+    .brand-verse{
+      font-size: 0.7rem;
+      color: var(--soft);
+      margin-top: 0.3rem;
+      opacity: 0.8;
+      line-height: 1.3;
     }
 
     .navbar .navbar-actions{ 
@@ -862,6 +870,63 @@ const label = document.querySelector('label[for="themeToggle"]');
 }
 .navbar .navbar-brand { -webkit-tap-highlight-color: transparent; }
 </style>
+
+<style id="gm-walkthrough-typography">
+  /* --- Brand sizing tweaks (Ultimate Trading Companion bigger; scripture smaller) --- */
+  .brand-kicker{
+    font-size: 1.25rem;   /* slightly larger headline */
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+  .brand-verse{
+    font-size: 0.90rem;   /* smaller scripture verse */
+    margin-top: 0.25rem;
+    margin-bottom: 0.6rem; /* extra space before any byline like "Foster Wealth Ventures" */
+    opacity: 0.9;
+    line-height: 1.25;
+  }
+  @media (max-width: 576px){
+    .brand-kicker{ font-size: 1.05rem; }
+    .brand-verse{ font-size: 0.6rem; }
+  }
+</style>
+
+
+<!-- GM DISCLAIMER STYLES v1.2 START -->
+<style nonce="gmnnonce-2025">
+  :root{--gm-bg:#fff;--gm-fg:#0f172a;--gm-muted:#475569;--gm-accent:#0ea5e9;--gm-accent-600:#0284c7;--gm-ring:rgba(14,165,233,.3);--gm-shadow:rgba(2,6,23,.35)}
+  @media (prefers-color-scheme: dark){:root{--gm-bg:#0b1220;--gm-fg:#e5e7eb;--gm-muted:#9ca3af;--gm-accent:#38bdf8;--gm-accent-600:#0ea5e9;--gm-ring:rgba(56,189,248,.3);--gm-shadow:rgba(0,0,0,.55)}}
+  .gm-disclaimer-open{overflow:hidden!important}
+  #gmDisclaimerOverlay{position:fixed;inset:0;background:rgba(2,6,23,.72);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:2147483000;display:none;align-items:center;justify-content:center;padding:2rem}
+  #gmDisclaimerModal{width:100%;max-width:760px;background:var(--gm-bg);color:var(--gm-fg);border-radius:16px;box-shadow:0 20px 50px var(--gm-shadow);border:1px solid rgba(148,163,184,.15);overflow:hidden}
+  #gmDisclaimerHeader{padding:20px 24px;border-bottom:1px solid rgba(148,163,184,.15)}
+  #gmDisclaimerTitle{margin:0;font-size:1.25rem;line-height:1.4;font-weight:700;letter-spacing:.2px}
+  #gmDisclaimerBody{padding:18px 24px 8px;font-size:.985rem;line-height:1.55;color:var(--gm-fg)}
+  #gmDisclaimerBody p{margin:0 0 .9rem 0;color:var(--gm-fg)}
+  #gmDisclaimerBody .muted{color:var(--gm-muted);font-size:.95rem}
+  #gmDisclaimerActions{display:flex;align-items:center;gap:14px;padding:18px 24px 24px;border-top:1px solid rgba(148,163,184,.15);flex-wrap:wrap}
+  #gmAgreeBtn[disabled]{opacity:.55;cursor:not-allowed}
+  #gmAgreeBtn,#gmDeclineBtn{appearance:none;border:0;border-radius:12px;padding:10px 16px;font-weight:600;font-size:.98rem;line-height:1.2;box-shadow:0 2px 8px rgba(2,6,23,.1);transition:transform .05s ease,box-shadow .2s ease}
+  #gmAgreeBtn{background:var(--gm-accent);color:#fff}
+  #gmAgreeBtn:not([disabled]):hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(14,165,233,.35);background:var(--gm-accent-600)}
+  #gmDeclineBtn{background:transparent;border:1px solid rgba(148,163,184,.35);color:var(--gm-fg)}
+  #gmDeclineBtn:hover{background:rgba(148,163,184,.08)}
+  .gmRow{display:flex;align-items:flex-start;gap:10px;margin-top:6px}
+  .gmRow input[type=checkbox]{width:18px;height:18px;margin-top:3px;accent-color:var(--gm-accent);outline:none;box-shadow:0 0 0 0 transparent}
+  .gmRow input[type=checkbox]:focus{outline:none;box-shadow:0 0 0 4px var(--gm-ring);border-radius:4px}
+  #gmLegalLinks{margin-top:6px;font-size:.92rem}
+  #gmLegalLinks a{color:var(--gm-accent);text-decoration:none}
+  #gmLegalLinks a:hover{text-decoration:underline}
+  @media (max-width:480px){#gmDisclaimerTitle{font-size:1.1rem}#gmDisclaimerBody{font-size:.95rem}#gmAgreeBtn,#gmDeclineBtn{width:100%}}
+</style>
+<!-- GM DISCLAIMER STYLES v1.2 END -->
+
+
+<!-- GM Overrides (Inline) • 2025-10-08 -->
+
+
 </head>
 <body>
 <!-- Notification Container for Alerts -->
@@ -876,7 +941,8 @@ const label = document.querySelector('label[for="themeToggle"]');
 <div class="d-flex flex-column">
 <small class="brand-kicker">Ultimate Trading Companion</small>
 <small class="brand-sub">Presented by Foster Wealth Ventures LLC</small>
-<small class="brand-verse">“Commit your work to the LORD, and your plans will be established.” — Prov 16:3</small>
+
+<small class="brand-verse">"Commit your work to the LORD, and your plans will be established." — Prov 16:3</small>
 </div>
 </a>
 <!-- Right-side actions (wraps on small screens) -->
@@ -1717,24 +1783,26 @@ function whenChartReady(cb){
 <!-- 4) Your main inline app code (defines loadGoldPriceChart, loadFeatureImportance, loadBiasInfluence, etc.) -->
  <script src="/dashboard/assets/js/config.js"></script>
 <script src="/dashboard/assets/js/api.js"></script>
-<script nonce="gmnnonce-2025">
-  // ... all your app code and function definitions ...
-  // function loadGoldPriceChart(){ ... }
-  // function loadFeatureImportance(){ ... }
-  // function loadBiasInfluence(){ ... }
-</script>
-<!-- 5) NOW call the inits (AFTER functions exist) -->
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  whenChartReady(() => {
-    if (typeof loadGoldPriceChart === 'function')   loadGoldPriceChart();
-    if (typeof loadFeatureImportance === 'function') loadFeatureImportance();
-    if (typeof loadBiasInfluence === 'function')     loadBiasInfluence();
-  });
-});
-</script>
 
-// ======= ENHANCED GOLDMIND AI DASHBOARD FUNCTIONALITY =======
+<script>
+let __gm_ac = null;
+let __gm_audio_enabled = false;
+(function __gm_bind_audio_resume(){
+  const resume = () => {
+    try {
+      __gm_ac = __gm_ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (__gm_ac.state === 'suspended') __gm_ac.resume();
+      __gm_audio_enabled = true;
+    } catch (_) { /* ignore */ }
+    window.removeEventListener('pointerdown', resume);
+    window.removeEventListener('keydown', resume);
+  };
+  window.addEventListener('pointerdown', resume, { once: true });
+  window.addEventListener('keydown', resume, { once: true });
+})();
+</script>
+<script nonce="gmnnonce-2025">
+  // ======= ENHANCED GOLDMIND AI DASHBOARD FUNCTIONALITY =======
 
 // Global state management
 const AppState = {
@@ -1814,17 +1882,7 @@ const AppState = {
             <p class="mb-0 small">${message}</p>
           </div>
         </div>
-      
-  .gmwth-header{ position: sticky; top:0; background: rgba(18,20,26,.96); backdrop-filter:saturate(120%) blur(2px);
-    display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.08); z-index:2; }
-  .gmwth-title{ font-weight:800; letter-spacing:.2px; }
-  .gmwth-close{ border:none; background:transparent; color:inherit; font-size:20px; cursor:pointer; padding:6px; line-height:1; border-radius:8px; }
-  .gmwth-body{ padding:16px; }
-  .gmwth-footer{ position: sticky; bottom:0; background: linear-gradient(to top, rgba(18,20,26,.96), rgba(18,20,26,.0));
-    padding:12px 16px; display:flex; justify-content:flex-end; gap:8px; border-top:1px solid rgba(255,255,255,.08); z-index:2; }
-  .gmwth-btn{ border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:.45rem .8rem; background:transparent; color:inherit; }
-  .gmwth-btn.primary{ background:linear-gradient(135deg,#ffd700,#e6c200); color:#141414; border-color:#d4af00; font-weight:700 }
-`;
+      `;
       
       container.appendChild(alertDiv);
       
@@ -1850,23 +1908,20 @@ const AppState = {
     }
 
     function playAlertSound(type = 'info') {
-      try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = type === 'warning' ? 800 : type === 'success' ? 600 : 400;
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
-      } catch (e) {
-        console.log('Audio not available:', e.message);
-      }
+  try {
+    if (!__gm_audio_enabled || !__gm_ac) return;
+    const osc = __gm_ac.createOscillator();
+    const gain = __gm_ac.createGain();
+    osc.connect(gain);
+    gain.connect(__gm_ac.destination);
+    osc.frequency.value = (type === 'warning') ? 800 : (type === 'success') ? 600 : 400;
+    gain.gain.setValueAtTime(0.3, __gm_ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, __gm_ac.currentTime + 0.5);
+    osc.start(__gm_ac.currentTime);
+    osc.stop(__gm_ac.currentTime + 0.5);
+  } catch (e) {
+    console.log('Audio not available:', e?.message || e);
+  }
     }
 
     // ======= MULTI-ASSET MANAGEMENT =======
@@ -2801,10 +2856,20 @@ Thank you for helping make GoldMIND AI better!`;
       generateEnhancedRecommendation,
       applySelectedIndicators
     };
-  </script>
-<!-- GoldMIND AI: Live wiring + theme toggle (do not change layout) -->
+</script>
+<!-- 5) NOW call the inits (AFTER functions exist) -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  whenChartReady(() => {
+    if (typeof loadGoldPriceChart === 'function')   loadGoldPriceChart();
+    if (typeof loadFeatureImportance === 'function') loadFeatureImportance();
+    if (typeof loadBiasInfluence === 'function')     loadBiasInfluence();
+  });
+});
+</script>
 
-<script nonce="gmnnonce-2025">
+<script>
+// ======= GOLDMIND AI: Live wiring + theme toggle =======
 (function(){
   const CONFIG = {
     NETLIFY_PROXY_BASE: '/api',
@@ -2812,21 +2877,18 @@ Thank you for helping make GoldMIND AI better!`;
     DEFAULT_SYMBOL_XAU: 'XAUUSD',
     DEFAULT_YF_SYMBOL: 'XAUUSD=X',
     TIMEOUT_MS: 15000,
-    THEME_STORAGE_KEY: 'gm_theme' // 'light' | 'dark'
+    THEME_STORAGE_KEY: 'gm_theme'
   };
 
-  // ===== Theme handling (robust, CSS-agnostic) =====
+  // ===== Theme handling =====
   function applyTheme(theme){
-    const root = document.documentElement; // <html>
+    const root = document.documentElement;
     const body = document.body;
     const isLight = theme === 'light';
-    // Prefer data-theme to avoid clashing with existing CSS;
-    // many dashboards already key off [data-theme="light|dark"]
     root.setAttribute('data-theme', theme);
     body.classList.toggle('theme-light', isLight);
     body.classList.toggle('theme-dark', !isLight);
     try { localStorage.setItem(CONFIG.THEME_STORAGE_KEY, theme); } catch(e){}
-    // Reflect UI toggle if present
     const t = document.getElementById('themeToggle');
     if (t && 'checked' in t) t.checked = isLight;
   }
@@ -2835,26 +2897,20 @@ Thank you for helping make GoldMIND AI better!`;
       const v = localStorage.getItem(CONFIG.THEME_STORAGE_KEY);
       if (v === 'light' || v === 'dark') return v;
     } catch(e) {}
-    // Auto default based on prefers-color-scheme if not stored
     return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
-  }
-  function toggleTheme(){
-    const next = currentTheme() === 'light' ? 'dark' : 'light';
-    applyTheme(next);
   }
   function wireThemeToggle(){
     const t = document.getElementById('themeToggle');
     if (t) {
-      // treat checked = light (so it's visible on both themes)
       t.addEventListener('change', () => applyTheme(t.checked ? 'light' : 'dark'));
-      // init position
       t.checked = currentTheme() === 'light';
     }
-    // Optional extra triggers (e.g., buttons with data-action="toggle-theme")
     document.querySelectorAll('[data-action="toggle-theme"]').forEach(btn => {
-      btn.addEventListener('click', toggleTheme);
+      btn.addEventListener('click', () => {
+        const next = currentTheme() === 'light' ? 'dark' : 'light';
+        applyTheme(next);
+      });
     });
-    // Apply immediately on load
     applyTheme(currentTheme());
   }
 
@@ -2904,8 +2960,7 @@ Thank you for helping make GoldMIND AI better!`;
     }
   }
   async function loadSpot(){
-    const data = await fetchJson(`${API_BASE}/market/gold/series`
-);
+    const data = await fetchJson(`${API_BASE}/market/gold/series`);
     const fmtUSD = n => (Number(n)||0).toLocaleString('en-US', {style:'currency', currency:'USD'});
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     set('spotGoldPrice', data.symbol ?? 'XAUUSD');
@@ -2952,8 +3007,7 @@ Midlayer regime: ${midlayer?.regime ?? 'n/a'} • Momentum: ${midlayer?.momentum
   }
   async function loadFeatureImportance(){
     try {
-      const data = await fetchJson(`${API_BASE}/v1/feature-importance`
-);
+      const data = await fetchJson(`${API_BASE}/v1/feature-importance`);
       const ctx = document.getElementById('featureImportanceChart');
       if (!ctx || !data?.features || !data?.importances) return;
       newChart(ctx, { type: 'bar', data: { labels: data.features, datasets: [{ label: 'Importance', data: data.importances }] },
@@ -2983,32 +3037,30 @@ Midlayer regime: ${midlayer?.regime ?? 'n/a'} • Momentum: ${midlayer?.momentum
       });
     } catch(e){ console.warn('Alerts error', e); }
   }
-async function renderInsightsFromSummary(API_BASE) {
-  try {
-    const r = await fetch(`${API_BASE}/api/summary`);
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    const data = await r.json();
 
-    let text = '';
-    if (Array.isArray(data?.signals)) {
-      text = 'Selected Indicators Impact:\n' +
-        data.signals.map(s => `• ${(s.name||s.label||'signal')}: ${(s.note||s.value||'')}`).join('\n');
-    } else if (typeof data?.summary === 'string') {
-      text = data.summary;
-    } else {
-      text = Object.keys(data||{}).slice(0,6)
-        .map(k => `• ${k}: ${typeof data[k]==='string'?data[k]:''}`).join('\n');
+  async function renderInsightsFromSummary() {
+    try {
+      const r = await fetch(`${API_BASE}/api/summary`);
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const data = await r.json();
+
+      let text = '';
+      if (Array.isArray(data?.signals)) {
+        text = 'Selected Indicators Impact:\n' +
+          data.signals.map(s => `• ${(s.name||s.label||'signal')}: ${(s.note||s.value||'')}`).join('\n');
+      } else if (typeof data?.summary === 'string') {
+        text = data.summary;
+      } else {
+        text = Object.keys(data||{}).slice(0,6)
+          .map(k => `• ${k}: ${typeof data[k]==='string'?data[k]:''}`).join('\n');
+      }
+
+      const el = document.querySelector('#indicatorResult');
+      if (el && text) el.textContent = text;
+    } catch(e) {
+      console.warn('insights summary adapter:', e.message);
     }
-
-    const el = document.querySelector('#indicatorResult');
-    if (el && text) el.textContent = text;
-  } catch(e) {
-    console.warn('insights summary adapter:', e.message);
   }
-}
-
-// call this during init:
-renderInsightsFromSummary(API_BASE);
 
   // ===== Actions =====
   async function doPredict(){
@@ -3076,6 +3128,7 @@ renderInsightsFromSummary(API_BASE);
     await decideApiBase();
     wireUI();
     await Promise.all([loadHealth(), loadSpot(), loadSeries(), loadInsights(), loadFeatureImportance(), loadBiasInfluence(), loadAlerts()]);
+    renderInsightsFromSummary();
     const y = document.getElementById('yearNow'); if (y) y.textContent = new Date().getFullYear();
     console.log('[GoldMIND] Dashboard ready');
   })();
@@ -3083,8 +3136,6 @@ renderInsightsFromSummary(API_BASE);
 </script>
 <!-- /GoldMIND AI wiring -->
 
-</script>
-<!-- /GoldMIND AI walkthrough -->
 <!-- Indicator selection wiring (non-invasive) -->
 <script nonce="gmnnonce-2025">
 (function(){
@@ -3195,6 +3246,7 @@ renderInsightsFromSummary(API_BASE);
 })();
 </script>
 <!-- /Indicator selection wiring -->
+
 <script nonce="gmnnonce-2025">
 (function(){
   // Upgrade "Focus" info box visibility without changing layout
@@ -3232,13 +3284,73 @@ renderInsightsFromSummary(API_BASE);
   markClearAll(clearBtn);
 })();
 </script>
-<footer>© GoldMIND AI • Foster Wealth Ventures LLC. All rights reserved. • 
-  <a href="https://fwvgoldmindai.com/terms" target="_blank">Terms of Use</a> • 
-  <a href="https://fwvgoldmindai.com/privacy" target="_blank">Privacy Policy</a> • 
-  <a href="https://console.cloud.google.com/run/detail/us-central1/goldmind-api/revisions?project=884387776097" target="_blank">View revision traffic split</a></footer>
+
+<!-- Enhanced walkthrough functionality (REPLACEMENT) -->
+
+<!-- /Enhanced walkthrough functionality -->
+
+
 <script nonce="gmnnonce-2025">
+(function() {
+  const root = document.documentElement;
+  const stored = localStorage.getItem("theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const theme = stored || (prefersDark ? "dark" : "light");
+  root.dataset.theme = theme;
+
+  window.toggleTheme = function() {
+    const current = root.dataset.theme === "dark" ? "light" : "dark";
+    root.dataset.theme = current;
+    localStorage.setItem("theme", current);
+  };
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.querySelector("#themeToggle, [data-action='toggle-theme']");
+    if (btn) btn.addEventListener("click", window.toggleTheme);
+  });
+})();
+</script>
+
+<!-- Global Chart wrapper that safely reuses canvases -->
+<script nonce="gmnnonce-2025">
+// Global Chart wrapper that safely reuses canvases
 (function(){
-  // Find the "Enhanced Alert Center" header block first to scope the search
+  if (!window.Chart) return;
+  window.newChart = function(ctxOrElOrId, config) {
+    let canvasEl = null;
+    let ctx = null;
+    if (typeof ctxOrElOrId === "string") {
+      canvasEl = document.getElementById(ctxOrElOrId);
+      if (!canvasEl) return null;
+      ctx = canvasEl.getContext("2d");
+    } else if (ctxOrElOrId && typeof ctxOrElOrId.getContext === "function") {
+      canvasEl = ctxOrElOrId;
+      ctx = canvasEl.getContext("2d");
+    } else if (ctxOrElOrId && ctxOrElOrId.canvas) {
+      ctx = ctxOrElOrId;
+      canvasEl = ctx.canvas;
+    }
+    if (!canvasEl || !ctx) return null;
+
+    // Destroy any existing chart bound to this canvas
+    const prev = (window.Chart && window.Chart.getChart)
+      ? window.Chart.getChart(canvasEl)
+      : (canvasEl._chart || null);
+    if (prev && typeof prev.destroy === "function") {
+      try { prev.destroy(); } catch (e) { console.debug("chart destroy:", e); }
+    }
+
+    // Create a new chart with the native constructor
+    const chart = new window.Chart(ctx, config);
+    if (!window.Chart.getChart) canvasEl._chart = chart;
+    return chart;
+  };
+})();
+</script>
+
+<script>
+// Find the "Enhanced Alert Center" header block first to scope the search
+(function(){
   function findAlertCenter(){
     // try explicit id or data-role
     let el = document.querySelector('#alertCenter, [data-role="alert-center"]');
@@ -3268,996 +3380,442 @@ renderInsightsFromSummary(API_BASE);
   markTestButton(scope);
 })();
 </script>
-<script nonce="gmnnonce-2025">
-(function() {
-  const root = document.documentElement;
-  const stored = localStorage.getItem("theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const theme = stored || (prefersDark ? "dark" : "light");
-  root.dataset.theme = theme;
 
-  window.toggleTheme = function() {
-    const current = root.dataset.theme === "dark" ? "light" : "dark";
-    root.dataset.theme = current;
-    localStorage.setItem("theme", current);
-  };
-
-  document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.querySelector("#themeToggle, [data-action='toggle-theme']");
-    if (btn) btn.addEventListener("click", window.toggleTheme);
-  });
-})();
-</script>
-<script>
-// Global Chart wrapper that safely reuses canvases.
-// Accepts either a 2D context, a canvas element, or a canvas id string.
-(function(){
-  if (!window.Chart) return;
-  window.newChart = function(ctxOrElOrId, config) {
-    let canvasEl = null;
-    let ctx = null;
-    if (typeof ctxOrElOrId === "string") {
-      canvasEl = document.getElementById(ctxOrElOrId);
-      if (!canvasEl) return null;
-      ctx = canvasEl.getContext("2d");
-    } else if (ctxOrElOrId && typeof ctxOrElOrId.getContext === "function") {
-      canvasEl = ctxOrElOrId;
-      ctx = canvasEl.getContext("2d");
-    } else if (ctxOrElOrId && ctxOrElOrId.canvas) {
-      ctx = ctxOrElOrId;
-      canvasEl = ctx.canvas;
-    }
-    if (!canvasEl || !ctx) return null;
-
-    // Destroy any existing chart bound to this canvas
-    const prev = (window.Chart && window.Chart.getChart)
-      ? window.Chart.getChart(canvasEl)
-      : (canvasEl._chart || null);
-    if (prev && typeof prev.destroy === "function") {
-      try { prev.destroy(); } catch (e) { console.debug("chart destroy:", e); }
-    }
-
-    // Create a new chart with the native constructor
-    const chart = new window.Chart(ctx, config);
-    if (!window.Chart.getChart) canvasEl._chart = chart; // for older Chart.js
-    return chart;
-  };
-})();
-</script>
-<script nonce="gmnnonce-2025">
-
-(function(){
-  const STYLE = `
-  .gmwth-overlay{
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,.7);
-    backdrop-filter: saturate(120%) blur(3px);
-    z-index: 2147483646;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    animation: fadeIn 0.3s ease-out;
-  }
-  
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  
-  .gmwth-card{
-    background: var(--card, #1a1a2e); #1a1a2e);
-    color: var(--text, #ffffff); #fff);
-    max-width: 550px;
-    width: 100%;
-    border-radius: 20px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.4);
-    padding: 0;
-    line-height: 1.6;
-    position: relative;
-    overflow: hidden;
-    animation: slideIn 0.4s ease-out;
-    border: 2px solid rgba(255, 215, 0, 0.3);
-  }
-  
-  @keyframes slideIn {
-    from { 
-      opacity: 0;
-      transform: translateY(30px) scale(0.95);
-    }
-    to { 
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-  
-  [data-theme="light"] .gmwth-card{
-    --card-bg: #ffffff;
-    --card-fg: #1a1a2e;
-    box-shadow: 0 20px 60px rgba(0,0,0,.15);
-  }
-  
-  .gmwth-header{
-    background: linear-gradient(135deg, #4f46e5, #7c3aed);
-    padding: 24px;
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .gmwth-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
-    opacity: 0.3;
-  }
-  
-  .gmwth-header-content {
-    position: relative;
-    z-index: 1;
-  }
-  
-  .gmwth-step-indicator{
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-  
-  .gmwth-step-number{
-    background: rgba(255,255,255,0.2);
-    border: 2px solid rgba(255,255,255,0.3);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: white;
-  }
-  
-  .gmwth-step-info{
-    color: rgba(255,255,255,0.9);
-    font-size: 0.9rem;
-    font-weight: 500;
-  }
-  
-  .gmwth-title{
-    font-weight: 800;
-    font-size: 1.4rem;
-    margin: 0;
-    color: white;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  
-  .gmwth-icon{
-    font-size: 1.8rem;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-  }
-  
-  .gmwth-body{
-    padding: 28px;
-  }
-  
-  .gmwth-description{
-    font-size: 1.05rem;
-    margin-bottom: 20px;
-    color: var(--card-fg);
-    opacity: 0.9;
-  }
-  
-  .gmwth-features{
-    background: rgba(79, 70, 229, 0.05);
-    border: 1px solid rgba(79, 70, 229, 0.2);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 20px;
-  }
-  
-  [data-theme="light"] .gmwth-features{
-    background: rgba(79, 70, 229, 0.03);
-  }
-  
-  .gmwth-features h6{
-    color: #4f46e5;
-    margin-bottom: 10px;
-    font-weight: 700;
-    font-size: 0.95rem;
-  }
-  
-  .gmwth-feature-list{
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  
-  .gmwth-feature-item{
-    padding: 6px 0;
-    color: var(--card-fg);
-    opacity: 0.85;
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .gmwth-feature-item:before{
-    content: "✓";
-    color: #10b981;
-    font-weight: bold;
-    font-size: 0.8rem;
-  }
-  
-  .gmwth-try-this{
-    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 193, 7, 0.05));
-    border: 2px solid rgba(255, 215, 0, 0.3);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 20px;
-  }
-  
-  .gmwth-try-this h6{
-    color: #ffd700;
-    margin-bottom: 8px;
-    font-weight: 700;
-    font-size: 0.95rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .gmwth-try-this p{
-    margin: 0;
-    color: var(--card-fg);
-    opacity: 0.9;
-    font-size: 0.9rem;
-  }
-  
-  .gmwth-actions{
-    border-top: 1px solid rgba(255,255,255,0.1);
-    padding: 20px 28px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: rgba(0,0,0,0.02);
-  }
-  
-  [data-theme="light"] .gmwth-actions{
-    border-top-color: rgba(0,0,0,0.1);
-    background: rgba(0,0,0,0.01);
-  }
-  
-  .gmwth-progress-section{
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  
-  .gmwth-progress{
-    width: 120px;
-    height: 6px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 3px;
-    overflow: hidden;
-  }
-  
-  [data-theme="light"] .gmwth-progress{
-    background: rgba(0,0,0,0.1);
-  }
-  
-  .gmwth-progress-fill{
-    height: 100%;
-    background: linear-gradient(90deg, #ffd700, #ffed4a);
-    border-radius: 3px;
-    transition: width 0.4s ease;
-  }
-  
-  .gmwth-progress-text{
-    font-size: 0.85rem;
-    color: var(--card-fg);
-    opacity: 0.7;
-    font-weight: 500;
-  }
-  
-  .gmwth-nav{
-    display: flex;
-    gap: 10px;
-  }
-  
-  .gmwth-btn{
-    border: 0;
-    border-radius: 12px;
-    padding: 12px 20px;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .gmwth-btn:before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-    transition: left 0.5s;
-  }
-  
-  .gmwth-btn:hover:before {
-    left: 100%;
-  }
-  
-  .gmwth-btn.primary{
-    background: linear-gradient(135deg, #ffd700, #ffed4a);
-    color: #1a1a2e;
-    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
-  }
-  
-  .gmwth-btn.primary:hover{
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(255, 215, 0, 0.4);
-  }
-  
-  .gmwth-btn.secondary{
-    background: rgba(255,255,255,0.1);
-    color: var(--card-fg);
-    border: 1px solid rgba(255,255,255,0.2);
-  }
-  
-  .gmwth-btn.secondary:hover{
-    background: rgba(255,255,255,0.2);
-    transform: translateY(-1px);
-  }
-  
-  .gmwth-btn.danger{
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    color: white;
-  }
-  
-  .gmwth-btn.danger:hover{
-    transform: translateY(-1px);
-    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
-  }
-  
-  .gmwth-spot{
-    position: relative;
-    outline: 4px solid #ffd700;
-    border-radius: 16px;
-    transition: all 0.4s ease;
-    outline-offset: 12px;
-    z-index: 9999;
-    box-shadow: 
-      0 0 0 99999px rgba(0,0,0,0.6),
-      0 0 30px rgba(255, 215, 0, 0.5),
-      inset 0 0 0 2px rgba(255, 215, 0, 0.3);
-    animation: pulse 2s infinite;
-  }
-  
-  @keyframes pulse {
-    0%, 100% { 
-      outline-color: #ffd700;
-      box-shadow: 
-        0 0 0 99999px rgba(0,0,0,0.6),
-        0 0 30px rgba(255, 215, 0, 0.5),
-        inset 0 0 0 2px rgba(255, 215, 0, 0.3);
-    }
-    50% { 
-      outline-color: #ffed4a;
-      box-shadow: 
-        0 0 0 99999px rgba(0,0,0,0.6),
-        0 0 40px rgba(255, 215, 0, 0.7),
-        inset 0 0 0 2px rgba(255, 215, 0, 0.5);
-    }
-  }
-  
-  .gmwth-tooltip {
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.9);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    white-space: nowrap;
-    margin-bottom: 10px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s;
-  }
-  
-  .gmwth-tooltip:after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 5px solid rgba(0,0,0,0.9);
-  }
-  
-  .gmwth-spot:hover .gmwth-tooltip {
-    opacity: 1;
-  }
-  
-  @media (max-width: 768px) {
-    .gmwth-card {
-      max-width: 95%;
-      margin: 10px;
-    }
-    
-    .gmwth-header {
-      padding: 20px;
-    }
-    
-    .gmwth-body {
-      padding: 20px;
-    }
-    
-    .gmwth-actions {
-      padding: 16px 20px;
-      flex-direction: column;
-      gap: 16px;
-    }
-    
-    .gmwth-progress-section {
-      order: 2;
-    }
-    
-    .gmwth-nav {
-      order: 1;
-      width: 100%;
-      justify-content: space-between;
-    }
-    
-    .gmwth-btn {
-      flex: 1;
-      text-align: center;
-    }
-  }
-  `;
-
-  const ADVANCED_STEPS = [
-    { 
-      sel: "#spotGoldPrice", 
-      title: "Multi-Asset Gold Universe",  
-      description: "Your gateway to comprehensive gold market analysis across four distinct asset classes.",
-      features: [
-        "Real-time spot gold prices (XAUUSD) - the foundation of all gold trading",
-        "Gold futures contracts (GC) with expiry tracking and volume analysis", 
-        "Options market sentiment via implied volatility and put/call ratios",
-        "ETF premium/discount analysis for GLD and IAU tracking"
-      ],
-      tryThis: "Click any asset card to switch analysis focus. Notice how the AI recommendations adapt to different asset characteristics and trading mechanics.",
-      icon: "🏆"
-    },
-    { 
-      sel: "#goldPriceChart",   
-      title: "Live Market Pulse",    
-      description: "Real-time price visualization with multiple data source redundancy and technical analysis integration.",
-      features: [
-        "Live price updates every 30 seconds during market hours",
-        "Multi-source data pipeline: Twelve Data → Alpha Vantage → Yahoo Finance",
-        "Integrated technical indicators overlay capability",
-        "Historical pattern recognition for trend analysis"
-      ],
-      tryThis: "Toggle the 'Smooth lines' option to see how different chart styles can reveal or hide market patterns. Watch for volume spikes that often precede major moves.",
-      icon: "📈"
-    },
-    { 
-      sel: "#alertsList",       
-      title: "Intelligent Alert Ecosystem",           
-      description: "AI-powered notification system that learns your trading patterns and filters noise from signal.",
-      features: [
-        "Price breakout detection using dynamic support/resistance levels",
-        "Volume anomaly alerts when trading exceeds statistical norms",
-        "Economic calendar integration for Fed announcements and data releases",
-        "Smart notification batching to prevent alert fatigue"
-      ],
-      tryThis: "Click 'Test' to experience the alert system, then enable browser notifications. Set your price change threshold in Settings to customize sensitivity.",
-      icon: "🚨"
-    },
-    { 
-      sel: "#resolveBtn",       
-      title: "Neural Decision Architecture",    
-      description: "Advanced AI engine combining machine learning, risk management, and behavioral finance for personalized trading insights.",
-      features: [
-        "Multi-factor model weighing 50+ market variables simultaneously",
-        "Personal risk tolerance integration with Kelly Criterion position sizing",
-        "Behavioral bias detection and mitigation strategies",
-        "Real-time confidence scoring with transparent reasoning chains"
-      ],
-      tryThis: "Configure your risk tolerance and investment amount, then generate a recommendation. Study the reasoning section to understand how the AI weighs different factors.",
-      icon: "🧠"
-    },
-    { 
-      sel: "#indicatorGrid",    
-      title: "Adaptive Technical Analysis",        
-      description: "Customize which technical indicators influence AI decisions, creating your personalized analysis framework.",
-      features: [
-        "Traditional momentum indicators: RSI, MACD, Stochastic oscillators",
-        "Gold-specific correlations: DXY inverse relationship, real yields impact",
-        "Market structure analysis: COT positioning, VIX fear gauge correlation",
-        "Dynamic indicator weighting based on current market regime"
-      ],
-      tryThis: "Start with default selections, then experiment with gold-specific indicators like DXY correlation. Notice how different combinations change AI confidence levels.",
-      icon: "🔧"
-    },
-    { 
-      sel: "#predictBtn",       
-      title: "LSTM Neural Forecasting",    
-      description: "Deep learning price predictions using Long Short-Term Memory networks trained on decades of gold market data.",
-      features: [
-        "1, 7, and 30-day price forecasts with confidence intervals",
-        "Feature importance analysis showing key prediction drivers",
-        "Model performance tracking with rolling accuracy metrics",
-        "Ensemble predictions combining multiple neural network architectures"
-      ],
-      tryThis: "Generate predictions for different symbols (try XAUUSD, GLD, or GC). Compare confidence levels and note how volatility affects prediction accuracy.",
-      icon: "🔮"
-    },
-    { 
-      sel: "#biasInfluenceChart",    
-      title: "Behavioral Finance Guard",        
-      description: "Psychological bias detection system designed to improve decision-making by identifying cognitive traps.",
-      features: [
-        "Real-time bias scoring across six key psychological dimensions",
-        "Confirmation bias detection when seeking supporting evidence",
-        "Loss aversion analysis affecting position sizing decisions",
-        "Recency bias alerts when overweighting recent market events"
-      ],
-      tryThis: "Watch how the bias radar changes as you interact with different features. High scores indicate areas where psychology might be affecting your judgment.",
-      icon: "🧭"
-    },
-    { 
-      sel: "#feedbackBtn",      
-      title: "Continuous Learning Engine", 
-      description: "Machine learning system that evolves based on real trading outcomes, improving recommendations over time.",
-      features: [
-        "Trade outcome tracking with performance attribution analysis",
-        "Recommendation accuracy measurement and model retraining",
-        "Personal trading pattern recognition and adaptation",
-        "Collective intelligence from anonymized user feedback integration"
-      ],
-      tryThis: "After following any recommendation, submit feedback about the outcome. This trains the AI to better match your trading style and risk preferences.",
-      icon: "📊"
-    }
-  ];
-
-  function $(q){ return document.querySelector(q); }
-  
-  function ensureStyle(){
-    if (document.getElementById("gmwth-style")) return;
-    const s = document.createElement("style");
-    s.nonce = 'gmnnonce-2025';
-    s.id="gmwth-style"; 
-    s.textContent = STYLE;
-    document.head.appendChild(s);
-  }
-
-  function highlight(sel){
-    const el = $(sel);
-    if (!el) return null;
-    
-    // Add tooltip
-    const tooltip = document.createElement('div');
-    tooltip.className = 'gmwth-tooltip';
-    tooltip.textContent = 'This is the feature being explained';
-    el.style.position = 'relative';
-    el.appendChild(tooltip);
-    
-    el.classList.add("gmwth-spot");
-    
-    // Smooth scroll with offset
-    const rect = el.getBoundingClientRect();
-    const offset = window.innerHeight / 2 - rect.height / 2;
-    const targetY = window.pageYOffset + rect.top - offset;
-    
-    window.scrollTo({
-      top: Math.max(0, targetY),
-      behavior: 'smooth'
-    });
-    
-    return el;
-  }
-
-  function removeHighlight(sel){
-    const el = $(sel);
-    if (!el) return;
-    el.classList.remove("gmwth-spot");
-    
-    // Remove tooltip
-    const tooltip = el.querySelector('.gmwth-tooltip');
-    if (tooltip) tooltip.remove();
-  }
-
-  function makeOverlay(stepIdx){
-    const step = ADVANCED_STEPS[stepIdx];
-    const progress = ((stepIdx + 1) / ADVANCED_STEPS.length) * 100;
-    
-    const overlay = document.createElement("div");
-    overlay.className = "gmwth-overlay";
-    overlay.innerHTML = `
-      <div class="gmwth-card" role="dialog" aria-modal="true">
-        <div class="gmwth-header">
-          <div class="gmwth-header-content">
-            <div class="gmwth-step-indicator">
-              <div class="gmwth-step-number">${stepIdx + 1}</div>
-              <div class="gmwth-step-info">Step ${stepIdx + 1} of ${ADVANCED_STEPS.length} • GoldMIND AI Tour</div>
-            </div>
-            <h3 class="gmwth-title">
-              <span class="gmwth-icon">${step.icon}</span>
-              ${step.title}
-            </h3>
-          </div>
-        </div>
-        
-        <div class="gmwth-body">
-          <div class="gmwth-description">${step.description}</div>
-          
-          <div class="gmwth-features">
-            <h6>🔍 Key Capabilities:</h6>
-            <ul class="gmwth-feature-list">
-              ${step.features.map(feature => `<li class="gmwth-feature-item">${feature}</li>`).join('')}
-            </ul>
-          </div>
-          
-          <div class="gmwth-try-this">
-            <h6>💡 Try This Now:</h6>
-            <p>${step.tryThis}</p>
-          </div>
-        </div>
-        
-        <div class="gmwth-actions">
-          <div class="gmwth-progress-section">
-            <div class="gmwth-progress">
-              <div class="gmwth-progress-fill" style="width: ${progress}%"></div>
-            </div>
-            <span class="gmwth-progress-text">${Math.round(progress)}% Complete</span>
-          </div>
-          
-          <div class="gmwth-nav">
-            <button class="gmwth-btn danger" data-act="close">Skip Tour</button>
-            ${stepIdx > 0 ? '<button class="gmwth-btn secondary" data-act="prev">Previous</button>' : ''}
-            ${stepIdx < ADVANCED_STEPS.length - 1 ? 
-              '<button class="gmwth-btn primary" data-act="next">Continue →</button>' : 
-              '<button class="gmwth-btn primary" data-act="done">Complete Tour ✓</button>'
-            }
-          </div>
-        </div>
-      </div>`;
-    return overlay;
-  }
-
-  function startWalkthrough(){
-    ensureStyle();
-    let idx = 0, overlay;
-
-    function show(i){
-      // Clear previous
-      if (overlay) overlay.remove();
-      if (ADVANCED_STEPS[idx]) removeHighlight(ADVANCED_STEPS[idx].sel);
-      
-      idx = i;
-      
-      // Skip steps whose element isn't present
-      while (idx < ADVANCED_STEPS.length && !document.querySelector(ADVANCED_STEPS[idx].sel)) {
-        idx++;
-      }
-      
-      if (idx >= ADVANCED_STEPS.length){
-        showCompletionMessage();
-        return;
-      }
-      
-      const spot = highlight(ADVANCED_STEPS[idx].sel);
-      overlay = makeOverlay(idx);
-      document.body.appendChild(overlay);
-      
-      // Add click handlers
-      overlay.addEventListener('click', (e)=>{
-        const act = e.target?.getAttribute('data-act');
-        if (act === 'close'){
-          overlay.remove(); 
-          removeHighlight(ADVANCED_STEPS[idx].sel);
-          showSkipMessage();
-        } else if (act === 'done'){
-          overlay.remove(); 
-          removeHighlight(ADVANCED_STEPS[idx].sel);
-          showCompletionMessage();
-        } else if (act === 'next'){ 
-          show(idx + 1); 
-        } else if (act === 'prev'){ 
-          let p = idx - 1;
-          while (p >= 0 && !document.querySelector(ADVANCED_STEPS[p].sel)) p--;
-          if (p >= 0) show(p);
-        }
-      });
-
-      // Keyboard navigation
-      const handleKeys = (e) => {
-        if (e.key === 'Escape') {
-          overlay.remove();
-          removeHighlight(ADVANCED_STEPS[idx].sel);
-          document.removeEventListener('keydown', handleKeys);
-        } else if (e.key === 'ArrowRight' && idx < ADVANCED_STEPS.length - 1) {
-          show(idx + 1);
-        } else if (e.key === 'ArrowLeft' && idx > 0) {
-          let p = idx - 1;
-          while (p >= 0 && !document.querySelector(ADVANCED_STEPS[p].sel)) p--;
-          if (p >= 0) show(p);
-        }
-      };
-      document.addEventListener('keydown', handleKeys);
-    }
-    
-    show(0);
-  }
-
-  function showCompletionMessage(){
-    // Create completion celebration
-    const completionOverlay = document.createElement('div');
-    completionOverlay.className = 'gmwth-overlay';
-    completionOverlay.innerHTML = `
-      <div class="gmwth-card">
-        <div class="gmwth-header">
-          <div class="gmwth-header-content">
-            <h3 class="gmwth-title">
-              <span class="gmwth-icon">🎉</span>
-              Tour Complete!
-            </h3>
-          </div>
-        </div>
-        <div class="gmwth-body">
-          <div class="gmwth-description">
-            Congratulations! You've mastered the GoldMIND AI platform. You're now equipped to:
-          </div>
-          <div class="gmwth-features">
-            <h6>✅ Your New Capabilities:</h6>
-            <ul class="gmwth-feature-list">
-              <li class="gmwth-feature-item">Analyze gold markets across multiple asset classes</li>
-              <li class="gmwth-feature-item">Generate AI-powered trading recommendations</li>
-              <li class="gmwth-feature-item">Customize technical analysis to your style</li>
-              <li class="gmwth-feature-item">Manage risk with advanced position sizing</li>
-              <li class="gmwth-feature-item">Avoid psychological trading pitfalls</li>
-            </ul>
-          </div>
-          <div class="gmwth-try-this">
-            <h6>🚀 Ready to Trade?</h6>
-            <p>Start by configuring your risk tolerance in the AI Decision Engine, then generate your first personalized recommendation!</p>
-          </div>
-        </div>
-        <div class="gmwth-actions">
-          <div></div>
-          <button class="gmwth-btn primary" data-act="finish">Start Trading →</button>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(completionOverlay);
-    
-    completionOverlay.addEventListener('click', (e) => {
-      if (e.target.getAttribute('data-act') === 'finish') {
-        completionOverlay.remove();
-        // Focus on the AI Decision Engine
-        const engine = document.getElementById('resolveUserId');
-        if (engine) {
-          engine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          engine.focus();
-        }
-      }
-    });
-    
-    // Auto-close after 10 seconds
-    setTimeout(() => {
-      if (completionOverlay.parentElement) {
-        completionOverlay.remove();
-      }
-    }, 10000);
-    
-    if (window.showSuccessNotification) {
-      window.showSuccessNotification('GoldMIND AI tour completed! You\'re ready to start advanced gold trading analysis.');
-    }
-  }
-
-  function showSkipMessage(){
-    if (window.showNotification) {
-      window.showNotification('Tour skipped', 'You can restart the tour anytime from the Help menu.', 'info');
-    }
-  }
-
-  function wireWalkButton(){
-    const WALK_IDS = ["walkthroughBtn","helpBtn","startWalkthrough","helpWalkthrough","startTour","helpButton"];
-    let wired = false;
-    
-    WALK_IDS.forEach(id => {
-      const btn = document.getElementById(id);
-      if (btn && !wired){
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          startWalkthrough();
-        });
-        wired = true;
-      }
-    });
-    
-    document.querySelectorAll('[data-action="walkthrough"]').forEach(el => {
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        startWalkthrough();
-      });
-      wired = true;
-    });
-  }
-
-  // Initialize
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', wireWalkButton);
-  } else {
-    wireWalkButton();
-  }
-
-  // Expose for manual triggering
-  window.startGoldMindTour = startWalkthrough;
-})();
-
-</script>
 <script defer="" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-<script>
-// GoldMIND Walkthrough — Singleton 1.0.3
-// Fixes: robust button clicks (use closest()), ultra-high z-index, kill conflicts, auto-wire.
+<footer>© GoldMIND AI • Foster Wealth Ventures LLC. All rights reserved. • 
+  <a href="https://fwvgoldmindai.com/terms" target="_blank">Terms of Use</a> • 
+  <a href="https://fwvgoldmindai.com/privacy" target="_blank">Privacy Policy</a> • 
+  <a href="https://console.cloud.google.com/run/detail/us-central1/goldmind-api/revisions?project=884387776097" target="_blank">View revision traffic split</a></footer>
+
+
+<!-- GM DISCLAIMER MODAL v1.2 START -->
+<div id="gmDisclaimerOverlay" role="presentation" style="display:none">
+  <div id="gmDisclaimerModal" role="dialog" aria-modal="true" aria-labelledby="gmDisclaimerTitle" aria-describedby="gmDisclaimerBody">
+    <div id="gmDisclaimerHeader">
+      <h2 id="gmDisclaimerTitle">Educational Disclaimer &amp; Important Notice</h2>
+    </div>
+    <div id="gmDisclaimerBody">
+      <p>Welcome to <strong>GoldMIND AI</strong>. GoldMIND is a <em>trading companion</em> that offers <strong>research</strong> and <strong>model‑generated recommendations</strong> for <strong>educational purposes</strong> to help you analyze markets and strengthen your trading process.</p>
+      <p><strong>GoldMIND AI is not</strong> a broker-dealer, investment adviser, or fiduciary. All market data, analytics, and recommendations are provided for <strong>educational and informational</strong> use only.</p>
+      <p><strong>Behavioral &amp; Bias Awareness:</strong> GoldMIND may highlight potential <em>psychological/behavioral trading biases</em> (e.g., confirmation bias, loss aversion, anchoring, recency, overconfidence) inferred from your inputs and settings. These are heuristic indicators intended to encourage self‑reflection and discipline; they are not diagnoses, clinical advice, or guarantees of performance.</p>
+      <p><strong>This platform does not execute trades, place orders, or simulate trading activity, and it does not connect to any brokerage account.</strong></p>
+      <p>The insights and recommendations generated by GoldMIND AI should not be interpreted as personalized financial advice or a recommendation to buy or sell any security. You are solely responsible for your investment decisions and outcomes.</p>
+      <p class="muted">By selecting “I Agree,” you confirm that you understand and accept these terms.</p>
+    </div>
+    <div id="gmDisclaimerActions">
+      <label class="gmRow" for="gmAgreeCheck">
+        <input id="gmAgreeCheck" type="checkbox" aria-label="Confirm educational-use understanding" />
+        <div>I understand GoldMIND AI is a trading companion offering research and recommendations (including bias-awareness indicators) for educational purposes only, and not financial advice.</div>
+      </label>
+      <button id="gmAgreeBtn" type="button" disabled aria-disabled="true">I Agree</button>
+      <button id="gmDeclineBtn" type="button">Decline &amp; Exit</button>
+      <div id="gmLegalLinks">See our <a href="/terms.html" target="_blank" rel="noopener">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</div>
+    </div>
+  </div>
+</div>
+
+<script nonce="gmnnonce-2025">
 (function(){
-  function nuke(){
-    [
-      '.gm-wt-overlay','.gm-wt-card','#gm-wt-style','#gm-fab',
-      '.modal-backdrop','.shepherd-modal-overlay-container','.shepherd-element',
-      '#walkthrough-tooltip','#walkthrough-overlay','.tour-overlay','.tour-tooltip',
-      '.introjs-overlay','.introjs-helperLayer','.driver-overlay','.driver-popover',
-      '#keyCapabilities','#keyCapabilitiesPanel','.key-capabilities','.walkthrough-panel',
-      '#TourPanel','#tourPanel','#startWalkthroughPanel','.feature-guide','#featureGuide'
-    ].forEach(sel=>document.querySelectorAll(sel).forEach(n=>n.remove()));
-    [...document.querySelectorAll('h1,h2,h3,.modal-title,.card-title,strong,header,section,div')]
-      .filter(el=>/key\s*capabilities/i.test(el.textContent||''))
-      .forEach(el => (el.closest('.modal,.offcanvas,.drawer,.panel,.sheet,.card,section,article,div')||el).remove());
-    document.body.classList.remove('modal-open');
-    document.body.style.removeProperty('overflow');
-    document.body.style.removeProperty('padding-right');
-  }
+  "use strict";
+  if (window.__GOLDMIND_DISCLAIMER_LOADED) return; window.__GOLDMIND_DISCLAIMER_LOADED = true;
+  var STORAGE_KEY = "goldmind.disclaimer.accepted.v1";
+  var overlay = document.getElementById("gmDisclaimerOverlay");
+  var modal   = document.getElementById("gmDisclaimerModal");
+  var check   = document.getElementById("gmAgreeCheck");
+  var agree   = document.getElementById("gmAgreeBtn");
+  var decline = document.getElementById("gmDeclineBtn");
 
-  // styles (very high z-index, 40/30vh card body)
-  if(!document.getElementById('gm-wt-style')){
-    const css=document.createElement('style'); css.id='gm-wt-style';
-    css.textContent = `
-      .gm-wt-overlay{position:fixed;inset:0;z-index:2147483000;pointer-events:none;
-        background:radial-gradient(220px 220px at var(--gm-x,50%) var(--gm-y,30%),
-        transparent 0,transparent 28%,rgba(0,0,0,.55) 32%,rgba(0,0,0,.65) 100%);}
-      .gm-wt-card{position:fixed;z-index:2147483001;max-width:560px;width:min(92vw,560px);
-        background:var(--card,#111827);color:var(--text,#e5e7eb);
-        border:1px solid #27324b;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.45);
-        pointer-events:auto;}
-      .gm-wt-header{font-weight:800;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);}
-      .gm-wt-body{padding:10px 16px;max-height:40vh;overflow:auto;}
-      @media (max-height:740px){.gm-wt-body{max-height:30vh;}}
-      .gm-wt-actions{display:flex;gap:8px;justify-content:flex-end;padding:10px 16px;border-top:1px solid rgba(255,255,255,.08);}
-      .gm-btn{border-radius:10px;padding:.45rem .9rem;font-weight:700;border:2px solid transparent;cursor:pointer;}
-      .gm-btn-primary{background:linear-gradient(135deg,#ffd700,#e6c200);color:#141414;}
-      .gm-btn-secondary{background:transparent;color:inherit;border-color:#6c757d;}
-    `;
-    document.head.appendChild(css);
-  }
+  function hasAccepted(){ try{ var raw = localStorage.getItem(STORAGE_KEY); if(!raw) return false; var parsed = JSON.parse(raw); return !!(parsed && parsed.accepted===true); }catch(e){ return false; } }
+  function setAccepted(){ try{ var payload={accepted:true, ts:new Date().toISOString(), version:1}; localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); window.dispatchEvent(new CustomEvent("goldmind:disclaimer:accepted", {detail: payload})); }catch(_){} }
 
-  const S = { // flexible selectors
-    spot:'#spotGoldPrice,[data-wt="spot-price"],.spot-price,[data-spot="xauusd"]',
-    chart:'#goldPriceChart,canvas#goldPriceChart,[data-wt="gold-chart"],canvas[data-chart="gold"]',
-    alerts:'#alertsList,[data-wt="alerts"]',
-    help:'#helpBtn,[data-wt="help-btn"]',
-    settings:'[data-bs-target="#settingsPanel"],#settingsBtn,[data-wt="settings-btn"]'
-  };
-  const STEPS=[
-    { sel:S.spot, title:'Live Spot Price', html:'Live XAUUSD spot (Yahoo fallback). Use the refresh icon to update.' },
-    { sel:S.chart, title:'Price Performance', html:'Inspect trend & volatility. Toggle smoothing/period to explore.' },
-    { sel:S.alerts, title:'Enhanced Alert Center', html:'Configure price/breakout/risk alerts with browser & sound notifications.' },
-    { sel:S.help, title:'Help & Guide', html:'Open Help anytime for explanations & FAQs.' },
-    { sel:S.settings, title:'Settings', html:'Tune chart smoothing, defaults, thresholds & theme.' },
-  ];
-  const $=(s,r=document)=>r.querySelector(s);
-
-  const State={overlay:null,card:null,tEl:null,bEl:null,i:0,running:false};
-
-  function buildDOM(){
-    const overlay=document.createElement('div'); overlay.className='gm-wt-overlay';
-    const card=document.createElement('div'); card.className='gm-wt-card';
-    card.innerHTML=`
-      <div class="gm-wt-header"><span id="gm-t"></span></div>
-      <div class="gm-wt-body"><div id="gm-b"></div></div>
-      <div class="gm-wt-actions">
-        <button class="gm-btn gm-btn-secondary" id="gm-close" type="button"><span>Close</span></button>
-        <button class="gm-btn gm-btn-primary"  id="gm-next"  type="button"><span>Next</span></button>
-      </div>`;
-    document.body.appendChild(overlay); document.body.appendChild(card);
-    State.overlay=overlay; State.card=card; State.tEl=card.querySelector('#gm-t'); State.bEl=card.querySelector('#gm-b');
-
-    // robust click: accept clicks on child spans/icons via closest()
-    card.addEventListener('click', (e)=>{
-      const nextBtn = e.target.closest('#gm-next');
-      const closeBtn= e.target.closest('#gm-close');
-      if(nextBtn){ e.stopImmediatePropagation(); e.preventDefault(); next(); }
-      if(closeBtn){ e.stopImmediatePropagation(); e.preventDefault(); stop(); }
-    }, true);
-
-    // keyboard nav
-    document.addEventListener('keydown',(e)=>{
-      if(!State.running) return;
-      if(e.key==='Escape') { e.preventDefault(); stop(); }
-      if(e.key==='ArrowRight') { e.preventDefault(); next(); }
-      if(e.key==='ArrowLeft')  { e.preventDefault(); prev(); }
+  function trapFocus(el){
+    var nodes = el.querySelectorAll('a[href],area[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled]),[tabindex]:not([tabindex="-1"])');
+    nodes = Array.prototype.slice.call(nodes);
+    if(!nodes.length) return; var first = nodes[0], last = nodes[nodes.length-1];
+    el.addEventListener("keydown", function(e){
+      if(e.key === "Tab"){
+        if(e.shiftKey){ if(document.activeElement === first){ e.preventDefault(); last.focus(); } }
+        else { if(document.activeElement === last){ e.preventDefault(); first.focus(); } }
+      } else if (e.key === "Escape") { e.preventDefault(); }
     });
-    window.addEventListener('resize', ()=>{ if(State.running) reflow(); }, {passive:true});
   }
-  function ensureDOM(){ if(!State.card || !document.body.contains(State.card)) buildDOM(); }
 
-  function place(t){
-    const r=t.getBoundingClientRect(), m=12, cw=State.card.offsetWidth||360, ch=State.card.offsetHeight||200;
-    let top=r.bottom+m, left=r.left;
-    left=Math.max(m,Math.min(left,window.innerWidth-cw-m));
-    top =Math.max(m,Math.min(top ,window.innerHeight-ch-m));
-    left+=window.scrollX; top+=window.scrollY;
-    State.card.style.left=left+'px'; State.card.style.top=top+'px';
-    State.overlay.style.setProperty('--gm-x',(r.left+r.width/2)+'px');
-    State.overlay.style.setProperty('--gm-y',(r.top +r.height/2)+'px');
+  function open(){ document.documentElement.classList.add("gm-disclaimer-open"); overlay.style.display = "flex"; check.focus(); trapFocus(modal); }
+  function close(){ overlay.remove(); document.documentElement.classList.remove("gm-disclaimer-open"); }
+
+  if (!hasAccepted()){
+    overlay.addEventListener("click", function(e){ if(e.target === overlay){ e.stopPropagation(); } }, true);
+    check.addEventListener("change", function(){ agree.disabled = !check.checked; agree.setAttribute("aria-disabled", agree.disabled ? "true" : "false"); });
+    agree.addEventListener("click", function(){ if(!check.checked) return; setAccepted(); close(); });
+    decline.addEventListener("click", function(){ window.location.href = "https://fosterwealthventures.com/"; });
+    open();
   }
-  function show(k,reflow=false){
-    if(k<0||k>=STEPS.length){ stop(); return; }
-    const s=STEPS[k], t=$(s.sel); if(!t){ next(); return; }
-    if(!reflow){
-      State.tEl.textContent=s.title; State.bEl.innerHTML=s.html;
-      t.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
+
+  window.GoldmindDisclaimer = window.GoldmindDisclaimer || {};
+  window.GoldmindDisclaimer.reset = function(){ try{ localStorage.removeItem(STORAGE_KEY); }catch(_){} open(); };
+  window.GoldmindDisclaimer.show = open;
+})();
+</script>
+<!-- GM DISCLAIMER MODAL v1.2 END -->
+
+
+
+
+
+<!-- GOLDMIND WALKTHROUGH - CLEAN IMPLEMENTATION -->
+<script nonce="gmnnonce-2025">
+(function () {
+  "use strict";
+  if (window.__GOLDMIND_WALKTHROUGH_LOADED) return;
+  window.__GOLDMIND_WALKTHROUGH_LOADED = true;
+
+  var STORAGE_KEY = "goldmind.walkthrough.state.v2";
+  var state = { step: 0, dismissed: false, completed: false };
+  
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") state = Object.assign(state, parsed);
     }
-    requestAnimationFrame(()=>place(t));
-    State.overlay.style.display='block'; State.card.style.display='block'; State.running=true;
-  }
-  function reflow(){ const s=STEPS[State.i], t=$(s.sel); if(t) place(t); }
-  function start(){ nuke(); ensureDOM(); State.i=0; show(State.i); }
-  function next(){ State.i++; show(State.i); }
-  function prev(){ State.i--; show(State.i); }
-  function stop(){ if(!State.running) return; State.overlay.style.display='none'; State.card.style.display='none'; State.running=false; }
+  } catch (e) {}
 
-  // Expose
-  window.WT = { start, next, prev, stop, version:'singleton-1.0.3', check: () => STEPS.map((s,i)=>({i,title:s.title,found:!!$(s.sel)})) };
+  var root, mask, tooltip, nextBtn, prevBtn, skipBtn, doneBtn, closeX;
+  var currentEl = null;
+  var keyHandler = null;
+  var resizeHandler = null;
+  var observer = null;
+  var rafId = null;
+  var running = false;
+  var destroyed = false;
 
-  // Auto-wire the top-right button or add a small FAB if missing
-  function wireBtn(){
-    const btn=document.getElementById('walkthroughBtn');
-    if(btn){ btn.removeAttribute('onclick'); btn.onclick=null; btn.addEventListener('click', ()=>start(), {passive:true}); }
-    else{
-      if(!document.getElementById('gm-fab')){
-        const fab=document.createElement('button'); fab.id='gm-fab'; fab.textContent='Start Tour';
-        fab.style.cssText='position:fixed;right:14px;top:14px;z-index:2147483002;background:#111827;color:#e5e7eb;border:1px solid #334155;border-radius:999px;padding:.45rem .75rem;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.35)';
-        fab.addEventListener('click', ()=>start()); document.body.appendChild(fab);
+  // Inject styles once
+  var STYLE = `
+    #gm-wt-root { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; }
+    #gm-wt-root * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif; }
+    #gm-wt-mask { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.65); backdrop-filter: saturate(120%) blur(2px); transition: clip-path 0.18s ease; pointer-events: auto; }
+    
+    #gm-wt-tooltip {
+      position: fixed !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      max-width: 90vw;
+      width: 500px;
+      background: #111;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      padding: 24px;
+      pointer-events: auto;
+      z-index: 2147483648;
+    }
+    
+    #gm-wt-tooltip h3 { margin: 0 0 12px 0; font-size: 1.25rem; line-height: 1.3; font-weight: 700; color: #fff; }
+    #gm-wt-tooltip p { margin: 0 0 10px 0; font-size: 0.95rem; line-height: 1.6; opacity: 0.9; }
+    #gm-wt-tooltip p:last-of-type { margin-bottom: 0; }
+    
+    #gm-wt-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+    
+    .gm-wt-btn {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: #222;
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .gm-wt-btn:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-1px); }
+    .gm-wt-btn.primary { background: #0ea5e9; border-color: #0ea5e9; }
+    .gm-wt-btn.primary:hover { background: #0284c7; }
+    .gm-wt-btn:focus { outline: 2px solid rgba(14, 165, 233, 0.5); outline-offset: 2px; }
+    .gm-wt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    #gm-wt-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: transparent;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: all 0.2s ease;
+    }
+    
+    #gm-wt-close:hover { background: rgba(255, 90, 95, 0.2); border-color: rgba(255, 90, 95, 0.4); }
+    
+    #gm-wt-sr { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+    .gm-wt-hidden { display: none !important; }
+    
+    @media (max-width: 768px) {
+      #gm-wt-tooltip {
+        width: calc(100vw - 2rem);
+        max-width: none;
+        padding: 20px;
       }
+      #gm-wt-tooltip h3 { font-size: 1.1rem; }
+      #gm-wt-tooltip p { font-size: 0.9rem; }
+      .gm-wt-btn { padding: 8px 12px; font-size: 0.85rem; }
+    }
+  `;
+
+  var STEPS = [
+    { selector: ".asset-type-card[data-asset-type='spot']", title: "Asset Overview", benefit: "Switch between Spot, Futures, Options, and ETFs.", tip: "Click any card to activate it." },
+    { selector: "#goldPriceChart", title: "Price Chart", benefit: "Track gold price movements.", tip: "Toggle 'Smooth lines' for cleaner trends." },
+    { selector: "#alertsList", title: "Alert Center", benefit: "Never miss important price moves.", tip: "Enable browser notifications." },
+    { selector: "#resolveBtn", title: "AI Decision Engine", benefit: "Get personalized trading recommendations.", tip: "Configure your risk settings first." },
+    { selector: "#indicatorGrid", title: "Custom Indicators", benefit: "Choose which indicators influence AI.", tip: "Try different combinations." },
+    { selector: "#predictBtn", title: "LSTM Predictions", benefit: "AI-powered price forecasts.", tip: "Use as one input in your analysis." },
+    { selector: "#feedbackBtn", title: "Learning Feedback", benefit: "Help improve AI accuracy.", tip: "Report your trade outcomes." },
+    { selector: "footer", title: "Ready to Trade!", benefit: "You now know all key features.", tip: "Re-run this tour anytime." }
+  ];
+
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function ensureRoot() {
+    if (root) return;
+    
+    root = document.createElement("div");
+    root.id = "gm-wt-root";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.className = "gm-wt-hidden";
+
+    var style = document.createElement("style");
+    style.textContent = STYLE;
+    root.appendChild(style);
+
+    var sr = document.createElement("div");
+    sr.id = "gm-wt-sr";
+    sr.textContent = "Walkthrough active. Press Escape to exit.";
+    root.appendChild(sr);
+
+    mask = document.createElement("div");
+    mask.id = "gm-wt-mask";
+    root.appendChild(mask);
+
+    tooltip = document.createElement("div");
+    tooltip.id = "gm-wt-tooltip";
+    tooltip.setAttribute("aria-live", "polite");
+    tooltip.innerHTML = '<button id="gm-wt-close" aria-label="Close">✕</button><div id="gm-wt-body"></div><div id="gm-wt-actions"></div>';
+    root.appendChild(tooltip);
+
+    document.body.appendChild(root);
+
+    closeX = tooltip.querySelector("#gm-wt-close");
+    closeX.addEventListener("click", end);
+
+    var actions = tooltip.querySelector("#gm-wt-actions");
+    prevBtn = btn("Back");
+    nextBtn = btn("Next", "primary");
+    skipBtn = btn("Skip");
+    doneBtn = btn("Done", "primary");
+
+    actions.appendChild(skipBtn);
+    actions.appendChild(prevBtn);
+    actions.appendChild(nextBtn);
+    actions.appendChild(doneBtn);
+
+    skipBtn.addEventListener("click", skipAll);
+    nextBtn.addEventListener("click", next);
+    prevBtn.addEventListener("click", prev);
+    doneBtn.addEventListener("click", end);
+    
+    console.log('[Walkthrough] Root element created and appended to body');
+  }
+
+  function btn(label, cls) {
+    var b = document.createElement("button");
+    b.className = "gm-wt-btn" + (cls ? " " + cls : "");
+    b.type = "button";
+    b.textContent = label;
+    return b;
+  }
+
+  function waitForElement(selector, timeoutMs) {
+    return new Promise(function(resolve, reject) {
+      var el = document.querySelector(selector);
+      if (el) {
+        console.log('[Walkthrough] Element found immediately:', selector);
+        return resolve(el);
+      }
+
+      var t = setTimeout(function() {
+        if (observer) observer.disconnect();
+        console.warn('[Walkthrough] Timeout waiting for:', selector);
+        reject(new Error("Timeout: " + selector));
+      }, timeoutMs || 3000);
+
+      observer = new MutationObserver(function() {
+        var el2 = document.querySelector(selector);
+        if (el2) {
+          clearTimeout(t);
+          observer.disconnect();
+          observer = null;
+          console.log('[Walkthrough] Element found via observer:', selector);
+          resolve(el2);
+        }
+      });
+      
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    });
+  }
+
+  function measure(el) {
+    try { el.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    catch(_) { el.scrollIntoView(); }
+    var r = el.getBoundingClientRect();
+    return { top: r.top, left: r.left, width: r.width, height: r.height };
+  }
+
+  function drawMask(rect) {
+    var pad = 12;
+    var x = rect.left - pad;
+    var y = rect.top - pad;
+    var w = rect.width + pad * 2;
+    var h = rect.height + pad * 2;
+    mask.style.clipPath = "inset(" + y + "px calc(100% - " + (x+w) + "px) calc(100% - " + (y+h) + "px) " + x + "px round 12px)";
+  }
+
+  function setStep(i) {
+    console.log('[Walkthrough] Setting step:', i);
+    state.step = i;
+    saveState();
+
+    prevBtn.disabled = i === 0;
+    nextBtn.classList.remove("gm-wt-hidden");
+    doneBtn.classList.add("gm-wt-hidden");
+    
+    if (i === STEPS.length - 1) {
+      nextBtn.classList.add("gm-wt-hidden");
+      doneBtn.classList.remove("gm-wt-hidden");
+    }
+
+    var step = STEPS[i];
+    var body = tooltip.querySelector("#gm-wt-body");
+    body.innerHTML = "<h3>" + esc(step.title) + "</h3><p><strong>Why it helps:</strong> " + esc(step.benefit) + "</p><p><em>Try this:</em> " + esc(step.tip) + "</p>";
+
+    waitForElement(step.selector, 2000).then(function(el) {
+      currentEl = el;
+      requestAnimationFrame(function() {
+        var rect = measure(el);
+        drawMask(rect);
+        tooltip.classList.remove("gm-wt-hidden");
+        console.log('[Walkthrough] Step displayed successfully');
+      });
+    }).catch(function(err) {
+      console.warn('[Walkthrough] Element not found, skipping:', step.selector, err);
+      if (i < STEPS.length - 1) setTimeout(next, 300);
+      else end(true);
+    });
+  }
+
+  function onKey(e) {
+    if (e.key === "Escape") end();
+    else if (e.key === "ArrowRight") next();
+    else if (e.key === "ArrowLeft") prev();
+  }
+
+  function onResize() {
+    if (!currentEl) return;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(function() {
+      var rect = measure(currentEl);
+      drawMask(rect);
+    });
+  }
+
+  function start(from) {
+    if (running || destroyed) {
+      console.warn('[Walkthrough] Already running or destroyed');
+      return;
+    }
+    console.log('[Walkthrough] Starting tour');
+    ensureRoot();
+    running = true;
+    root.classList.remove("gm-wt-hidden");
+    state.dismissed = false;
+    
+    if (typeof from === "number") state.step = from;
+    else if (state.completed) state.step = 0;
+    
+    saveState();
+
+    keyHandler = onKey;
+    resizeHandler = onResize;
+    document.addEventListener("keydown", keyHandler);
+    window.addEventListener("resize", resizeHandler);
+
+    setStep(state.step);
+  }
+
+  function next() { var i = state.step + 1; if (i >= STEPS.length) return end(true); setStep(i); }
+  function prev() { var i = state.step - 1; if (i < 0) i = 0; setStep(i); }
+  function skipAll() { state.dismissed = true; saveState(); destroy(); }
+  function end(markComplete) { if (markComplete) state.completed = true; saveState(); destroy(); }
+
+  function destroy() {
+    if (destroyed) return;
+    console.log('[Walkthrough] Destroying');
+    destroyed = true;
+    running = false;
+    try { document.removeEventListener("keydown", keyHandler); } catch(_) {}
+    try { window.removeEventListener("resize", resizeHandler); } catch(_) {}
+    if (observer) { try { observer.disconnect(); } catch(_) {} observer = null; }
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (root && root.parentNode) { root.parentNode.removeChild(root); }
+    root = mask = tooltip = nextBtn = prevBtn = skipBtn = doneBtn = closeX = null;
+    currentEl = null;
+  }
+
+  // Public API
+  window.startGoldMindTour = function(fromIndex) {
+    console.log('[Walkthrough] startGoldMindTour called');
+    start(typeof fromIndex === "number" ? fromIndex : undefined);
+  };
+  window.resetGoldMindTour = function() {
+    state = { step: 0, dismissed: false, completed: false };
+    saveState();
+  };
+  window.GoldMindWalkthrough = { start: window.startGoldMindTour, reset: window.resetGoldMindTour };
+
+  // Wire button
+  function wireTriggers() {
+    console.log('[Walkthrough] Wiring triggers');
+    var walkthroughBtn = document.getElementById('walkthroughBtn');
+    if (walkthroughBtn) {
+      walkthroughBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        console.log('[Walkthrough] Button clicked');
+        window.startGoldMindTour(0);
+      });
+    } else {
+      console.warn('[Walkthrough] Button not found');
     }
   }
-  document.addEventListener('DOMContentLoaded', wireBtn);https://github.gallerycdn.vsassets.io/extensions/github/copilot-chat/0.31.5/1759771009685/Microsoft.VisualStudio.Services.Icons.Default
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireTriggers, { once: true });
+  else wireTriggers();
 
-  // Optional: auto-start for validation if ?tour=1
-  if(new URLSearchParams(location.search).get('tour')==='1'){
-    document.addEventListener('DOMContentLoaded', ()=>start());
-  }
+  console.log('[Walkthrough] Script loaded');
 })();
 </script>
 </body>
