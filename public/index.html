@@ -961,9 +961,48 @@ const label = document.querySelector('label[for="themeToggle"]');
 [data-bs-theme="light"] #gm-wt-tooltip[data-bg="light"] small { color: #0f172a !important; }
 </style>
 
+
+
 <style nonce="gmnnonce-2025">
-/* Remove rectangular scrim behind walkthrough */
-#gm-wt-mask { background: transparent !important; clip-path: none !important; pointer-events: none !important; }
+/* Walkthrough: theme-aware scrim */
+:root { --wt-scrim: rgba(0,0,0,.55); }
+[data-bs-theme="light"] { --wt-scrim: rgba(17,24,39,.35); }
+
+#gm-wt-mask {
+  background: var(--wt-scrim);
+  backdrop-filter: blur(1.5px);
+  -webkit-backdrop-filter: blur(1.5px);
+  pointer-events: auto;
+  transition: background .2s ease;
+}
+
+/* Optional user preference to disable dimming */
+html[data-wt-dim="off"] #gm-wt-mask {
+  background: transparent;
+  pointer-events: none;
+}
+</style>
+
+<style nonce="gmnnonce-2025">
+/* Force no scrim/mask behind walkthrough */
+#gm-wt-mask { 
+  background: transparent !important; 
+  backdrop-filter: none !important; 
+  -webkit-backdrop-filter: none !important;
+  /* keep blocking clicks while tour is open; switch to 'none' if you want click-through */
+  pointer-events: auto;
+}
+/* Even if a dimming preference is 'on', keep it transparent */
+html[data-wt-dim="on"] #gm-wt-mask { 
+  background: transparent !important; 
+  backdrop-filter: none !important; 
+  -webkit-backdrop-filter: none !important;
+}
+/* If you want both transparent AND click-through, flip this to pointer-events: none */
+html[data-wt-dim="off"] #gm-wt-mask { 
+  background: transparent !important; 
+  pointer-events: none !important;
+}
 </style>
 </head>
 <body>
@@ -3645,7 +3684,7 @@ Midlayer regime: ${midlayer?.regime ?? 'n/a'} • Momentum: ${midlayer?.momentum
   { 
     selector: ".navbar-brand", 
     title: "👋 Welcome to GoldMIND AI!", 
-    benefit: "You're about to discover how to leverage AI for smarter gold trading. This 60-second tour will show you the 8 most powerful features that give you an edge in the market.",
+    benefit: "You're about to discover how to leverage AI for smarter gold trading. This 60-second tour will show you the 9 most powerful features that give you an edge in the market.",
     tip: "💡 You can exit anytime by pressing ESC or clicking 'Skip'. Use arrow keys ← → to navigate, or click the buttons below.",
     details: "GoldMIND AI combines machine learning, technical analysis, and risk management into one intelligent trading companion. Let's get started!"
   },
@@ -4235,5 +4274,21 @@ Midlayer regime: ${midlayer?.regime ?? 'n/a'} • Momentum: ${midlayer?.momentum
   <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> •
   <a href="/revision.html">View revision traffic split</a>
 </footer>
+
+<script nonce="gmnnonce-2025">
+(function(){
+  var KEY = 'gm.tourDim';
+  function apply(v){ document.documentElement.setAttribute('data-wt-dim', v); }
+  // initialize (default 'on')
+  apply(localStorage.getItem(KEY) || 'on');
+  // expose toggle for UI/debug
+  window.toggleTourDim = function(){
+    var cur = document.documentElement.getAttribute('data-wt-dim') || 'on';
+    var next = (cur === 'on') ? 'off' : 'on';
+    apply(next);
+    try { localStorage.setItem(KEY, next); } catch(e){}
+  };
+})();
+</script>
 </body>
 </html>
