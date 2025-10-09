@@ -25,7 +25,15 @@
 <link href="/assets/css/styles.css?v=3" rel="stylesheet"/>
 
 <script>
-(function(){
+  // Safe element updater
+  function safeUpdate(id, property, value) {
+    const el = document.getElementById(id);
+    if (el) { el[property] = value; return true; }
+    return false;
+  }
+</script>
+
+<script nonce="gmnnonce-2025">(function(){
   // Define newChart always
   window.newChart = function(ctxOrElOrId, config) {
     // Resolve canvas + context
@@ -940,6 +948,23 @@ const label = document.querySelector('label[for="themeToggle"]');
   }
 </style>
 <!-- GM DISCLAIMER STYLES v1.2 END -->
+<style nonce="gmnnonce-2025">
+/* Walkthrough tooltip readable in light & dark */
+#gm-wt-tooltip,
+#gm-wt-tooltip p,
+#gm-wt-tooltip li,
+#gm-wt-tooltip small { color: #e6edf7 !important; }
+
+/* If you switch the tooltip to a light background later, this keeps contrast good */
+[data-bs-theme="light"] #gm-wt-tooltip[data-bg="light"] p,
+[data-bs-theme="light"] #gm-wt-tooltip[data-bg="light"] li,
+[data-bs-theme="light"] #gm-wt-tooltip[data-bg="light"] small { color: #0f172a !important; }
+</style>
+
+<style nonce="gmnnonce-2025">
+/* Remove rectangular scrim behind walkthrough */
+#gm-wt-mask { background: transparent !important; clip-path: none !important; pointer-events: none !important; }
+</style>
 </head>
 <body>
 <!-- Notification Container for Alerts -->
@@ -2746,7 +2771,30 @@ Thank you for helping make GoldMIND AI better!`;
       showSuccessNotification('Settings saved successfully');
     }
 
-    function loadSettings() {
+    s() 
+      try {
+        const saved = localStorage.getItem('goldmind_settings');
+        if (saved) {
+          const settings = JSON.parse(saved);
+          
+          // Apply saved settings
+          if (settings.smoothLines !== undefined) {
+            document.getElementById('toggleSmoothLinesSetting').checked = settings.smoothLines;
+          }
+          if (settings.defaultTradingStyle) {
+            document.getElementById('defaultTradingStyle').value = settings.defaultTradingStyle;
+            document.getElementById('tradingStyle').value = settings.defaultTradingStyle;
+          }
+          if (settings.defaultTimeFrame) {
+            document.getElementById('defaultTimeFrame').value = settings.defaultTimeFrame;
+            document.getElementById('timeFrame').value = settings.defaultTimeFrame;
+          }
+          if (settings.dailyGoal) {
+            document.getElementById('dailyGoalSetting').value = settings.dailyGoal;
+            document.getElementById('dailyGoal').value = settings.dailyGoal;
+          }
+        }
+           function loadSettings() {
       try {
         const saved = localStorage.getItem('goldmind_settings');
         if (saved) {
@@ -2782,9 +2830,92 @@ Thank you for helping make GoldMIND AI better!`;
 
     // ======= INITIALIZATION =======
     document.addEventListener('DOMContentLoaded', async () => {
-      // Set current year
-      document.getElementById('yearNow').textContent = new Date().getFullYear();
+      // Initialize year
+      safeUpdate('yearNow', 'textContent', new Date().getFullYear());
+      
+      // Check notification permission
+      if ('Notification' in window) {
+        AppState.notificationPermission = Notification.permission;
+        updateNotificationUI();
+      }
 
+      // Initialize all systems
+      setupSettings();
+      setupAssetTypeSelection();
+      setupIndicatorSelection();
+      setupDecisionEngine();
+      setupCharts();
+      setupAlertSystem();
+      setupPredictiveAnalysis();
+      setupFeedbackSystem();
+
+      // Set default active asset
+      document.querySelector('.asset-type-card[data-asset-type="spot"]')?.classList.add('active');
+      
+      // Show welcome notification
+      setTimeout(() => {
+        showSuccessNotification('Welcome to Enhanced GoldMIND AI! All systems initialized and ready for trading analysis.');
+      }, 1000);
+
+      // Add some demo data updates
+      setTimeout(() => {
+        updateDemoData();
+      }, 3000);
+    });
+        (async function init(){
+    hideGlobalError();
+    wireThemeToggle();
+    await decideApiBase();
+    wireUI();
+    await Promise.all([loadHealth(), loadSpot(), loadSeries(), loadInsights(), loadFeatureImportance(), loadBiasInfluence(), loadAlerts()]);
+    renderInsightsFromSummary();
+    
+    // Update year in footer using the safe helper
+    safeUpdate('yearNow', 'textContent', new Date().getFullYear());
+    
+    console.log('[GoldMIND] Dashboard ready');
+  })();
+</script>
+<script nonce="gmnnonce-2025">
+
+<!-- /GoldMIND AI wiring -->
+
+      } catch (error) {
+        console.log('Error loading settings:', error);
+      }
+    
+
+    // ======= INITIALIZATION =======
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Set current year
+      // Find functions like this pattern and add null checks:
+
+function updateElement(id, value) {
+  const el = document.getElementById(id);
+  if (el) {  // ✅ Add this check
+    el.textContent = value;
+  } else {
+    console.warn(`Element not found: ${id}`);  // Optional: helps debug
+  }
+}
+
+// Apply this pattern to all your update functions
+async function loadSpot(){
+  const data = await fetchJson(`${API_BASE}/market/gold/series`);
+  const fmtUSD = n => (Number(n)||0).toLocaleString('en-US', {style:'currency', currency:'USD'});
+  
+  const set = (id, val) => { 
+    const el = document.getElementById(id); 
+    if (el) el.textContent = val;  // ✅ Already has check - good!
+  };
+  
+  set('spotGoldPrice', data.symbol ?? 'XAUUSD');
+  set('spotCurrentPrice', fmtUSD(data.price));
+  set('spot24hChange', (data.change_24h ?? 0).toFixed(2) + '%');
+  
+  const st = document.getElementById('spotStatus');
+  if (st) st.classList.add('bg-success');  // ✅ Good
+}
       // Check notification permission
       if ('Notification' in window) {
         AppState.notificationPermission = Notification.permission;
@@ -3386,15 +3517,11 @@ Midlayer regime: ${midlayer?.regime ?? 'n/a'} • Momentum: ${midlayer?.momentum
 
 <script defer="" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-<footer class="site-footer">
-  © 2025 GoldMIND AI • Foster Wealth Ventures LLC. All rights reserved. •
-  <a href="/terms.html" target="_blank" rel="noopener">Terms of Use</a> •
-  <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> •
-  <a href="/revision.html">View revision traffic split</a>
-</footer>
+
+</script>
+
 
 <!-- GOLDMIND WALKTHROUGH - CLEAN IMPLEMENTATION -->
-// ...existing code...
 <script nonce="gmnnonce-2025">
 (function () {
   "use strict";
@@ -4102,5 +4229,11 @@ Midlayer regime: ${midlayer?.regime ?? 'n/a'} • Momentum: ${midlayer?.momentum
   });
 })();
 </script> 
+<footer class="site-footer">
+  © <span id="yearNow">2025</span> GoldMIND AI • Foster Wealth Ventures LLC. All rights reserved. •
+  <a href="/terms.html" target="_blank" rel="noopener">Terms of Use</a> •
+  <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> •
+  <a href="/revision.html">View revision traffic split</a>
+</footer>
 </body>
 </html>
