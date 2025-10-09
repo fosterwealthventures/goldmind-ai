@@ -264,4 +264,140 @@ body.theme-light .input, body.theme-light .select, body.theme-light .textarea{
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+/* == }
+GoldMIND Disclaimer Modal fixes == */
+#disclaimerModal,
+.gm-disclaimer-overlay,
+[data-modal="disclaimer"] {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  background: rgba(0,0,0,.6);
+  display: grid;
+  place-items: center;
+  overflow: auto; /* allow overall scroll on small screens */
 }
+
+/* The card/dialog element */
+#disclaimerModal .gm-modal,
+#disclaimerModal [role="dialog"],
+.gm-disclaimer-card,
+[data-modal="disclaimer"] [role="dialog"] {
+  width: min(880px, calc(100vw - 2rem));
+  max-height: min(92vh, 900px);
+  background: #fff;
+  color: #111;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.45);
+}
+
+/* Scrollable body/content area */
+#disclaimerModal .gm-modal-body,
+#disclaimerModal .modal-body,
+.gm-disclaimer-card .gm-modal-body,
+[data-modal="disclaimer"] .modal-body {
+  padding: 20px;
+  overflow: auto;
+}
+
+/* Sticky footer actions always visible */
+#disclaimerModal .gm-modal-actions,
+#disclaimerModal .modal-footer,
+.gm-disclaimer-card .gm-modal-actions,
+[data-modal="disclaimer"] .modal-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 14px 16px;
+  border-top: 1px solid rgba(0,0,0,.08);
+  background: rgba(250,250,250,.96);
+  backdrop-filter: saturate(120%) blur(4px);
+}
+
+/* Dark theme tweaks */
+[data-bs-theme="dark"] #disclaimerModal [role="dialog"],
+[data-bs-theme="dark"] .gm-disclaimer-card {
+  background: #101114;
+  color: #e6e6e6;
+}
+[data-bs-theme="dark"] #disclaimerModal .gm-modal-actions,
+[data-bs-theme="dark"] #disclaimerModal .modal-footer {
+  background: rgba(16,17,20,.96);
+  border-top-color: rgba(255,255,255,.08);
+}
+/* == /disclaimer modal fixes == */
+}
+
+
+/* == GoldMIND Disclaimer Modal fixes (production) == */
+#gmDisclaimerOverlay,
+#disclaimerModal,
+.gm-disclaimer-overlay,
+[data-modal="disclaimer"] {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  background: rgba(2,6,23,0.72);
+  display: grid;
+  place-items: center;
+  overflow: auto;
+}
+#gmDisclaimerModal,
+#disclaimerModal .gm-modal,
+#disclaimerModal [role="dialog"],
+.gm-disclaimer-card,
+[data-modal="disclaimer"] [role="dialog"] {
+  width: min(880px, calc(100vw - 2rem));
+  max-height: min(92vh, 900px);
+  background: #fff;
+  color: #111;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 72px rgba(2,6,23,0.35);
+  border: 1px solid rgba(148,163,184,0.15);
+}
+#gmDisclaimerModal .gm-modal-body,
+#disclaimerModal .gm-modal-body,
+#disclaimerModal .modal-body,
+.gm-disclaimer-card .gm-modal-body,
+[data-modal="disclaimer"] .modal-body {
+  padding: 20px;
+  overflow: auto;
+}
+#gmDisclaimerModal .gm-modal-actions,
+#disclaimerModal .gm-modal-actions,
+#disclaimerModal .modal-footer,
+.gm-disclaimer-card .gm-modal-actions,
+[data-modal="disclaimer"] .modal-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 14px 16px;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  background: rgba(250,250,250,0.96);
+  backdrop-filter: saturate(120%) blur(4px);
+}
+[data-bs-theme="dark"] #gmDisclaimerModal,
+[data-bs-theme="dark"] #disclaimerModal [role="dialog"],
+[data-bs-theme="dark"] .gm-disclaimer-card {
+  background: #101114;
+  color: #e6e6e6;
+  box-shadow: 0 24px 72px rgba(0,0,0,0.45);
+  border-color: rgba(255,255,255,0.08);
+}
+[data-bs-theme="dark"] #gmDisclaimerModal .gm-modal-actions,
+[data-bs-theme="dark"] #disclaimerModal .gm-modal-actions,
+[data-bs-theme="dark"] #disclaimerModal .modal-footer {
+  background: rgba(16,17,20,0.96);
+  border-top-color: rgba(255,255,255,0.08);
+}
+/* == /GoldMIND Disclaimer Modal fixes == */

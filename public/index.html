@@ -3818,5 +3818,44 @@ Midlayer regime: ${midlayer?.regime ?? 'n/a'} • Momentum: ${midlayer?.momentum
   console.log('[Walkthrough] Script loaded');
 })();
 </script>
+<script>
+(function () {
+  "use strict";
+  var overlay = document.querySelector('#gmDisclaimerOverlay, #disclaimerModal, .gm-disclaimer-overlay, [data-modal="disclaimer"]');
+  if (!overlay) return;
+
+  // Find the dialog/card and body zones (fallbacks cover most structures)
+  var card = overlay.querySelector('#gmDisclaimerModal, .gm-modal, .gm-disclaimer-card, [role="dialog"]') || overlay.firstElementChild;
+  var body = card && (card.querySelector('.gm-modal-body, .modal-body, .body, .content') || card);
+  var actions = card && card.querySelector('.gm-modal-actions, .modal-footer, .actions, .footer');
+
+  // Defensive styling in case CSS didn’t load for some reason (kept minimal)
+  if (card) {
+    card.style.maxHeight = card.style.maxHeight || '92vh';
+    card.style.display = card.style.display || 'flex';
+    card.style.flexDirection = card.style.flexDirection || 'column';
+    card.style.overflow = card.style.overflow || 'hidden';
+  }
+  if (body) {
+    body.style.overflow = body.style.overflow || 'auto';
+  }
+  if (actions) {
+    actions.style.position = actions.style.position || 'sticky';
+    actions.style.bottom = actions.style.bottom || '0';
+  }
+  overlay.style.overflow = overlay.style.overflow || 'auto';
+
+  // Checkbox → enable/disable Agree
+  var cb = overlay.querySelector('#disclaimerChk, input[type="checkbox"]');
+  var agree = overlay.querySelector('#disclaimerAgree, [data-action="agree"], button.agree');
+  if (agree && cb) {
+    agree.disabled = !cb.checked;
+    cb.addEventListener('change', function () {
+      agree.disabled = !cb.checked;
+      if (cb.checked) agree.focus();
+    });
+  }
+})();
+</script>
 </body>
 </html>
