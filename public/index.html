@@ -910,34 +910,36 @@ const label = document.querySelector('label[for="themeToggle"]');
   :root{--gm-bg:#fff;--gm-fg:#0f172a;--gm-muted:#475569;--gm-accent:#0ea5e9;--gm-accent-600:#0284c7;--gm-ring:rgba(14,165,233,.3);--gm-shadow:rgba(2,6,23,.35)}
   @media (prefers-color-scheme: dark){:root{--gm-bg:#0b1220;--gm-fg:#e5e7eb;--gm-muted:#9ca3af;--gm-accent:#38bdf8;--gm-accent-600:#0ea5e9;--gm-ring:rgba(56,189,248,.3);--gm-shadow:rgba(0,0,0,.55)}}
   .gm-disclaimer-open{overflow:hidden!important}
-  #gmDisclaimerOverlay{position:fixed;inset:0;background:rgba(2,6,23,.72);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:2147483000;display:none;align-items:center;justify-content:center;padding:2rem}
-  #gmDisclaimerModal{width:100%;max-width:760px;background:var(--gm-bg);color:var(--gm-fg);border-radius:16px;box-shadow:0 20px 50px var(--gm-shadow);border:1px solid rgba(148,163,184,.15);overflow:hidden}
-  #gmDisclaimerHeader{padding:20px 24px;border-bottom:1px solid rgba(148,163,184,.15)}
+  #gmDisclaimerOverlay{position:fixed;inset:0;background:rgba(2,6,23,.72);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:2147483000;display:none;align-items:center;justify-content:center;padding:1rem;overflow-y:auto}
+  #gmDisclaimerModal{width:100%;max-width:760px;max-height:90vh;display:flex;flex-direction:column;background:var(--gm-bg);color:var(--gm-fg);border-radius:16px;box-shadow:0 20px 50px var(--gm-shadow);border:1px solid rgba(148,163,184,.15);margin:auto}
+  #gmDisclaimerHeader{padding:20px 24px;border-bottom:1px solid rgba(148,163,184,.15);flex-shrink:0}
   #gmDisclaimerTitle{margin:0;font-size:1.25rem;line-height:1.4;font-weight:700;letter-spacing:.2px}
-  #gmDisclaimerBody{padding:18px 24px 8px;font-size:.985rem;line-height:1.55;color:var(--gm-fg)}
+  #gmDisclaimerBody{padding:18px 24px;font-size:.985rem;line-height:1.55;color:var(--gm-fg);overflow-y:auto;flex:1}
   #gmDisclaimerBody p{margin:0 0 .9rem 0;color:var(--gm-fg)}
   #gmDisclaimerBody .muted{color:var(--gm-muted);font-size:.95rem}
-  #gmDisclaimerActions{display:flex;align-items:center;gap:14px;padding:18px 24px 24px;border-top:1px solid rgba(148,163,184,.15);flex-wrap:wrap}
+  #gmDisclaimerActions{display:flex;flex-direction:column;gap:14px;padding:18px 24px 24px;border-top:1px solid rgba(148,163,184,.15);flex-shrink:0}
   #gmAgreeBtn[disabled]{opacity:.55;cursor:not-allowed}
-  #gmAgreeBtn,#gmDeclineBtn{appearance:none;border:0;border-radius:12px;padding:10px 16px;font-weight:600;font-size:.98rem;line-height:1.2;box-shadow:0 2px 8px rgba(2,6,23,.1);transition:transform .05s ease,box-shadow .2s ease}
+  #gmAgreeBtn,#gmDeclineBtn{appearance:none;border:0;border-radius:12px;padding:10px 16px;font-weight:600;font-size:.98rem;line-height:1.2;box-shadow:0 2px 8px rgba(2,6,23,.1);transition:transform .05s ease,box-shadow .2s ease;cursor:pointer}
   #gmAgreeBtn{background:var(--gm-accent);color:#fff}
   #gmAgreeBtn:not([disabled]):hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(14,165,233,.35);background:var(--gm-accent-600)}
   #gmDeclineBtn{background:transparent;border:1px solid rgba(148,163,184,.35);color:var(--gm-fg)}
   #gmDeclineBtn:hover{background:rgba(148,163,184,.08)}
-  .gmRow{display:flex;align-items:flex-start;gap:10px;margin-top:6px}
-  .gmRow input[type=checkbox]{width:18px;height:18px;margin-top:3px;accent-color:var(--gm-accent);outline:none;box-shadow:0 0 0 0 transparent}
+  .gmRow{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px}
+  .gmRow input[type=checkbox]{width:18px;height:18px;margin-top:3px;accent-color:var(--gm-accent);outline:none;box-shadow:0 0 0 0 transparent;cursor:pointer;flex-shrink:0}
   .gmRow input[type=checkbox]:focus{outline:none;box-shadow:0 0 0 4px var(--gm-ring);border-radius:4px}
-  #gmLegalLinks{margin-top:6px;font-size:.92rem}
+  #gmLegalLinks{margin-top:6px;font-size:.92rem;text-align:center}
   #gmLegalLinks a{color:var(--gm-accent);text-decoration:none}
   #gmLegalLinks a:hover{text-decoration:underline}
-  @media (max-width:480px){#gmDisclaimerTitle{font-size:1.1rem}#gmDisclaimerBody{font-size:.95rem}#gmAgreeBtn,#gmDeclineBtn{width:100%}}
+  .gm-button-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+  @media (max-width:480px){
+    #gmDisclaimerModal{max-height:95vh}
+    #gmDisclaimerTitle{font-size:1.1rem}
+    #gmDisclaimerBody{font-size:.95rem;padding:16px 20px}
+    #gmAgreeBtn,#gmDeclineBtn{width:100%;padding:12px}
+    .gm-button-row{flex-direction:column-reverse}
+  }
 </style>
 <!-- GM DISCLAIMER STYLES v1.2 END -->
-
-
-<!-- GM Overrides (Inline) • 2025-10-08 -->
-
-
 </head>
 <body>
 <!-- Notification Container for Alerts -->
