@@ -334,11 +334,11 @@ GoldMIND Disclaimer Modal fixes == */
 }
 
 
-/* == GoldMIND Disclaimer Modal fixes (production) == */
+/* == GoldMIND Disclaimer Modal (production) == */
 #gmDisclaimerOverlay,
 #disclaimerModal,
 .gm-disclaimer-overlay,
-[data-modal="disclaimer"] {
+[data-modal="disclaimer"]{
   position: fixed;
   inset: 0;
   z-index: 2147483646;
@@ -347,11 +347,13 @@ GoldMIND Disclaimer Modal fixes == */
   place-items: center;
   overflow: auto;
 }
+
+/* Dialog/Card */
 #gmDisclaimerModal,
 #disclaimerModal .gm-modal,
 #disclaimerModal [role="dialog"],
 .gm-disclaimer-card,
-[data-modal="disclaimer"] [role="dialog"] {
+[data-modal="disclaimer"] [role="dialog"]{
   width: min(880px, calc(100vw - 2rem));
   max-height: min(92vh, 900px);
   background: #fff;
@@ -363,19 +365,23 @@ GoldMIND Disclaimer Modal fixes == */
   box-shadow: 0 24px 72px rgba(2,6,23,0.35);
   border: 1px solid rgba(148,163,184,0.15);
 }
+
+/* Body scroll */
 #gmDisclaimerModal .gm-modal-body,
 #disclaimerModal .gm-modal-body,
 #disclaimerModal .modal-body,
 .gm-disclaimer-card .gm-modal-body,
-[data-modal="disclaimer"] .modal-body {
+[data-modal="disclaimer"] .modal-body{
   padding: 20px;
   overflow: auto;
 }
+
+/* Sticky footer actions */
 #gmDisclaimerModal .gm-modal-actions,
 #disclaimerModal .gm-modal-actions,
 #disclaimerModal .modal-footer,
 .gm-disclaimer-card .gm-modal-actions,
-[data-modal="disclaimer"] .modal-footer {
+[data-modal="disclaimer"] .modal-footer{
   position: sticky;
   bottom: 0;
   display: flex;
@@ -386,18 +392,35 @@ GoldMIND Disclaimer Modal fixes == */
   background: rgba(250,250,250,0.96);
   backdrop-filter: saturate(120%) blur(4px);
 }
+
+/* Button style (fallback if not present) */
+.gm-wt-btn{
+  border: 1px solid rgba(148,163,184,0.3);
+  background: #222;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+.gm-wt-btn:hover{ transform: translateY(-1px); }
+.gm-wt-btn.primary{ background: #0ea5e9; border-color: #0ea5e9; }
+.gm-wt-btn.primary:hover{ background: #0284c7; }
+
+/* Dark theme */
 [data-bs-theme="dark"] #gmDisclaimerModal,
 [data-bs-theme="dark"] #disclaimerModal [role="dialog"],
-[data-bs-theme="dark"] .gm-disclaimer-card {
-  background: #101114;
-  color: #e6e6e6;
+[data-bs-theme="dark"] .gm-disclaimer-card{
+  background: #101114; color: #e6e6e6;
   box-shadow: 0 24px 72px rgba(0,0,0,0.45);
   border-color: rgba(255,255,255,0.08);
 }
 [data-bs-theme="dark"] #gmDisclaimerModal .gm-modal-actions,
 [data-bs-theme="dark"] #disclaimerModal .gm-modal-actions,
-[data-bs-theme="dark"] #disclaimerModal .modal-footer {
+[data-bs-theme="dark"] #disclaimerModal .modal-footer{
   background: rgba(16,17,20,0.96);
   border-top-color: rgba(255,255,255,0.08);
 }
-/* == /GoldMIND Disclaimer Modal fixes == */
+/* == /GoldMIND Disclaimer Modal == */
