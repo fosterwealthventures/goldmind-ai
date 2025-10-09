@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Revision & Traffic Split • GoldMIND AI</title>
+  <style>
+  :root{
+    --bg:#0b1220;
+    --card:#101a2e;
+    --text:#e6edf7;
+    --muted:#94a3b8;
+    --accent:#38bdf8;
+    --border:rgba(148,163,184,.25);
+    --green:#22c55e;
+    --red:#ef4444;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:920px;margin:40px auto;padding:0 20px}
+  header{margin-bottom:24px}
+  h1{font-size:1.9rem;margin:0 0 6px}
+  h2{margin-top:2rem}
+  p,li{color:var(--text)}
+  .muted{color:var(--muted)}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px}
+  footer{margin:40px 0 20px;color:var(--muted);font-size:.9rem}
+  code{background:#0b152a;border:1px solid var(--border);padding:.1rem .35rem;border-radius:6px}
+  .btn{display:inline-block;padding:10px 16px;border-radius:10px;border:1px solid var(--border);background:#0e1730;color:var(--text);text-decoration:none;font-weight:600}
+  .btn:hover{background:#0c1530}
+
+  .grid{display:grid;gap:14px}
+  .two{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--border);padding:6px 0}
+  .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#0d1a34;border:1px solid var(--border)}
+  .good{color:var(--green)}
+  .bad{color:var(--red)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Revision & Traffic Split</h1>
+      <div class="muted">For debugging A/B flags and localStorage</div>
+    </header>
+
+    <div class="card">
+      <div class="grid two">
+        <div>
+          <div class="kv"><span>Build</span><span class="pill">static • October 09, 2025</span></div>
+          <div class="kv"><span>Disclaimer</span><span class="pill">v1.3</span></div>
+          <div class="kv"><span>Walkthrough</span><span class="pill">v2</span></div>
+          <div class="kv"><span>Current Revision</span><span id="revVal" class="pill">—</span></div>
+        </div>
+        <div>
+          <button class="btn" onclick="setRev('A')">Set Revision: Control (A)</button>
+          <button class="btn" style="margin-left:8px" onclick="setRev('B')">Set Revision: Variant (B)</button>
+          <button class="btn" style="margin-left:8px" onclick="clearRev()">Clear Revision</button>
+          <p class="muted" style="margin-top:10px">Reload the dashboard after changing the revision.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Local Storage Keys</h2>
+      <pre id="storeDump" style="white-space:pre-wrap;background:#0b152a;border:1px solid var(--border);padding:12px;border-radius:10px"></pre>
+      <div style="margin-top:10px">
+        <button class="btn" onclick="resetDisclaimer()">Reset Disclaimer</button>
+        <button class="btn" onclick="resetWalkthrough()">Reset Walkthrough</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Recommended snippet (50/50 split on first visit)</h2>
+      <pre style="white-space:pre-wrap;background:#0b152a;border:1px solid var(--border);padding:12px;border-radius:10px"><code>(function(){ 
+  var KEY='goldmind.revision';
+  var v=localStorage.getItem(KEY);
+  if(!v){ v=(Math.random()<0.5)?'A':'B'; localStorage.setItem(KEY,v); }
+  document.documentElement.setAttribute('data-gm-revision', v);
+})();</code></pre>
+    </div>
+
+    <footer>
+      © 2025 GoldMIND AI • Foster Wealth Ventures LLC. <a href="/index.html">Back to dashboard</a>
+    </footer>
+  </div>
+
+  <script>
+    var KEY='goldmind.revision';
+    function setRev(v){ localStorage.setItem(KEY, v); update(); }
+    function clearRev(){ localStorage.removeItem(KEY); update(); }
+    function update(){ 
+      var v = localStorage.getItem(KEY) || '—';
+      document.getElementById('revVal').textContent = v;
+      var dump = []; 
+      for (var i=0;i<localStorage.length;i++){ 
+        var k=localStorage.key(i);
+        dump.push(k+': '+localStorage.getItem(k));
+      }
+      document.getElementById('storeDump').textContent = dump.sort().join('\n');
+    }
+    function resetDisclaimer(){ localStorage.removeItem('goldmind.disclaimer.accepted.v1'); update(); }
+    function resetWalkthrough(){ localStorage.removeItem('goldmind.walkthrough.state.v2'); update(); }
+    update();
+  </script>
+</body>
+</html>
