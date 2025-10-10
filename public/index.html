@@ -1711,7 +1711,7 @@ Apply different combinations to see how they influence AI recommendations…</pr
 
 Recent feedback summary:
 • 78% follow rate on AI recommendations
-• Average P&amp;L when followed: +2.3%
+• Average P&L when followed: +2.3%
 • Most common reasons for not following: "Market volatility", "Risk tolerance"
 • AI accuracy improving: 83.5% → 85.2% (last 30 days)</pre>
 </div>
@@ -2810,7 +2810,7 @@ Thank you for helping make GoldMIND AI better!`;
       showSuccessNotification('Settings saved successfully');
     }
 
-    s() 
+    function loadSettings() {
       try {
         const saved = localStorage.getItem('goldmind_settings');
         if (saved) {
@@ -2832,41 +2832,7 @@ Thank you for helping make GoldMIND AI better!`;
             document.getElementById('dailyGoalSetting').value = settings.dailyGoal;
             document.getElementById('dailyGoal').value = settings.dailyGoal;
           }
-        }
-           function loadSettings() {
-      try {
-        const saved = localStorage.getItem('goldmind_settings');
-        if (saved) {
-          const settings = JSON.parse(saved);
-          
-          // Apply saved settings
-          if (settings.smoothLines !== undefined) {
-            document.getElementById('toggleSmoothLinesSetting').checked = settings.smoothLines;
-          }
-          if (settings.defaultTradingStyle) {
-            document.getElementById('defaultTradingStyle').value = settings.defaultTradingStyle;
-            document.getElementById('tradingStyle').value = settings.defaultTradingStyle;
-          }
-          if (settings.defaultTimeFrame) {
-            document.getElementById('defaultTimeFrame').value = settings.defaultTimeFrame;
-            document.getElementById('timeFrame').value = settings.defaultTimeFrame;
-          }
-          if (settings.dailyGoal) {
-            document.getElementById('dailyGoalSetting').value = settings.dailyGoal;
-            document.getElementById('dailyGoal').value = settings.dailyGoal;
-          }
-        }
-        
-        // Load theme
-        const savedTheme = localStorage.getItem('goldmind_theme') || 'dark';
-        document.getElementById('themeToggle').checked = savedTheme === 'light';
-        applyTheme(savedTheme);
-        
-      } catch (error) {
-        console.log('Error loading settings:', error);
-      }
     }
-
     // ======= INITIALIZATION =======
     document.addEventListener('DOMContentLoaded', async () => {
       // Initialize year
@@ -3679,88 +3645,64 @@ Midlayer regime: ${midlayer?.regime ?? 'n/a'} • Momentum: ${midlayer?.momentum
     }
   `;
 
-  var STEPS = [
-  // Welcome Step
-  { 
-    selector: ".navbar-brand", 
-    title: "👋 Welcome to GoldMIND AI!", 
-    benefit: "You're about to discover how to leverage AI for smarter gold trading. This 60-second tour will show you the 9 most powerful features that give you an edge in the market.",
-    tip: "💡 You can exit anytime by pressing ESC or clicking 'Skip'. Use arrow keys ← → to navigate, or click the buttons below.",
-    details: "GoldMIND AI combines machine learning, technical analysis, and risk management into one intelligent trading companion. Let's get started!"
+  const STEPS = [
+  {
+    selector: ".navbar-brand",
+    title: `Welcome to GoldMIND AI!`,
+    benefit: `A quick tour of the 9 features that give you an edge.`,
+    tip: `Use ← → to navigate, ESC to exit.`
   },
-  
-  { 
-    selector: ".asset-type-card[data-asset-type='spot']", 
-    title: "🏆 Multi-Asset Gold Selection", 
-    benefit: "Trade spot gold, futures, options, or ETFs - all from one dashboard. Switch asset types based on your strategy and market conditions.",
-    tip: "💡 Click any card to activate. Start with Spot Gold (XAUUSD) if you're new - it's the most liquid.",
-    details: "Each asset type has unique characteristics: Spot for simplicity, Futures for leverage, Options for hedging, ETFs for long-term holds."
+  {
+    selector: ".asset-type-card[data-asset-type='spot']",
+    title: `Spot Gold overview`,
+    benefit: `See current price, 24h change, status, and context.`,
+    tip: `Cards highlight when models have fresh signals.`
   },
-  
-  { 
-    selector: "#goldPriceChart", 
-    title: "📈 Live Price Performance Chart", 
-    benefit: "Track 30-day gold price trends at a glance. Toggle 'Smooth lines' to see cleaner patterns or sharp lines for precise analysis.",
-    tip: "💡 Use this chart to identify support/resistance levels before requesting an AI recommendation.",
-    power_tip: "Manual charting takes 15+ minutes. This updates every 10 seconds automatically."
+  {
+    selector: ".asset-type-card[data-asset-type='futures']",
+    title: `Gold Futures`,
+    benefit: `Volume and expiry help time swing entries.`,
+    tip: `Use with Options to judge positioning.`
   },
-  
-  { 
-    selector: "#alertsList", 
-    title: "🚨 Enhanced Alert Center", 
-    benefit: "Get instant browser + sound notifications when gold breaks key price levels (default: ±2% moves). Never miss a trading opportunity again.",
-    tip: "💡 Click 'Enable browser notifications' now. Set your threshold in Settings (aggressive: 1%, conservative: 3%).",
-    real_use_case: "Example: Gold breaks $2,040 → Alert → Check AI → Trade decision in 30 seconds."
+  {
+    selector: ".asset-type-card[data-asset-type='options']",
+    title: `Options sentiment`,
+    benefit: `IV Rank and put/call ratio hint risk appetite.`,
+    tip: `Spikes often precede volatility moves.`
   },
-  
-  { 
-    selector: "#resolveBtn", 
-    title: "🎯 AI Decision Engine - Your Trading Brain", 
-    benefit: "Unlike tools that just say 'BUY', GoldMIND tells you HOW MUCH to buy, WHERE to enter/exit, and WHEN to cut losses - all adjusted to YOUR risk tolerance.",
-    tip: "💡 Fill in your trading style, investment amount, and daily goal. The AI customizes recommendations to YOUR profile.",
-    details: "This combines LSTM predictions, technical indicators, and risk management into one unified recommendation. Most platforms give you raw data - GoldMIND gives you a complete trading plan."
+  {
+    selector: ".asset-type-card[data-asset-type='etf']",
+    title: `Gold ETFs (GLD/IAU)`,
+    benefit: `Quick retail flows and premium context.`,
+    tip: `ETF divergences can flag mean reversion.`
   },
-  
-  { 
-    selector: ".risk-management-card", 
-    title: "⚠️ Risk Management - Protect Your Capital", 
-    benefit: "Set guardrails so the AI NEVER suggests trades exceeding your comfort level. Define max drawdown, position sizing method, and stop-loss strategy.",
-    tip: "💡 Start conservative: 10% Max Drawdown + ATR-Based Stop Loss + Kelly Criterion sizing. Adjust as you gain confidence.",
-    why_critical: "This is what separates smart traders from gamblers. Most AI tools ignore risk - GoldMIND forces downside protection BEFORE entry."
+  {
+    selector: "#marketStatus",
+    title: `Market regime`,
+    benefit: `Trend + volatility to frame bias.`,
+    tip: `Trade with regime; size with volatility.`
   },
-  
-  { 
-    selector: "#indicatorGrid", 
-    title: "📊 Custom Indicators - Fine-Tune AI Logic", 
-    benefit: "Select which technical signals (RSI, MACD) and gold-specific factors (DXY, Real Yields) influence AI recommendations. See how different combos change confidence scores.",
-    tip: "💡 Day traders: RSI + MACD + Volume. Swing traders: SMA + DXY + Real Yields. Try 3-5 indicators to start.",
-    power_tip: "The AI shows you live impact: Adding DXY might raise confidence from 68% → 82% if USD is weakening."
+  {
+    selector: "#recPanel",
+    title: `Today’s recommendation`,
+    benefit: `Entry/target with confidence from the decision engine.`,
+    tip: `Combine with risk alerts for discipline.`
   },
-  
-  { 
-    selector: "#predictBtn", 
-    title: "🔮 LSTM Price Predictions", 
-    benefit: "Neural network forecasts for 1-day, 7-day, and 30-day price targets with confidence levels. Use as ONE input (not gospel) in your decision.",
-    tip: "💡 Check predictions BEFORE entering a trade. If AI says 'UP' but you're planning to short, reconsider.",
-    accuracy: "Current model: 83.5% accuracy over last 30 days (tracks performance in real-time)."
+  {
+    selector: "#riskAlertPanel",
+    title: `Risk alerts`,
+    benefit: `Macro calendar and uncertainty flags.`,
+    tip: `Enable alerts to get nudged before key events.`
   },
-  
-  { 
-    selector: "#feedbackBtn", 
-    title: "🧠 Learning Feedback - Make AI Smarter", 
-    benefit: "Report trade outcomes so the AI learns YOUR unique patterns - when you follow recommendations, what works for your style, risk tolerance, etc.",
-    tip: "💡 Submit feedback even if you DIDN'T follow the AI. Explain why (too risky, bad timing). This personalizes future recommendations.",
-    impact: "Users who submit 3+ feedbacks see 15% higher accuracy - the AI adapts to YOU."
-  },
-  
-  { 
-    selector: "footer", 
-    title: "🎉 You're Ready to Trade Smarter!", 
-    benefit: "You now understand all 8 core features. Re-run this tour anytime from the navbar 'Walkthrough' button.",
-    tip: "💡 Next steps: (1) Enable alerts, (2) Set risk tolerance, (3) Get your first AI recommendation!",
-    final_note: "Remember: GoldMIND recommends, YOU decide. Always validate AI insights with your own research."
+  {
+    selector: "#submitLearningBtn",
+    title: `Trade Feedback & Learning`,
+    benefit: `Log outcome/notes so models improve your next recs.`,
+    tip: `Takes ~10 seconds after a trade—big impact over time.`
   }
 ];
+window.STEPS = STEPS;
+window.GM_WT_STEPS = STEPS;
   
   function saveState() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
