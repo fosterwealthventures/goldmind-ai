@@ -171,3 +171,4 @@ steps:
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA
+https://kilocode.gallerycdn.vsassets.io/extensions/kilocode/kilo-code/4.99.2/1759520784673/Microsoft.VisualStudio.Services.Icons.Default
