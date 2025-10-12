@@ -1347,7 +1347,7 @@
 </div>
 </a>
 <!-- Right-side actions (wraps on small screens) -->
-<div class="ms-auto navbar-actions">
+<div class="ms-auto navbar-actions nav-actions d-flex align-items-center gap-2 flex-wrap" id="topActions">
 <a class="btn btn-sm btn-outline-gold" href="#resolveBtn" title="Jump to trading section">⚡ Skip to Trading</a>
 <button class="btn btn-sm btn-outline-light" data-bs-target="#helpModal" data-bs-toggle="modal" id="helpBtn" type="button">Help</button>
 <button class="btn btn-sm btn-outline-warning" id="enableNotificationsBtn" type="button">🔔 Enable Alerts</button>
@@ -1356,7 +1356,15 @@
 <input class="form-check-input" id="themeToggle" type="checkbox"/>
 <label class="form-check-label text-soft" for="themeToggle">Light</label>
 </div>
-<button aria-controls="settingsPanel" class="btn btn-outline-info ms-2 mt-2 mt-md-0" data-bs-target="#settingsPanel" data-bs-toggle="offcanvas" type="button">Settings</button>
+<button id="settingsBtn"
+        class="btn btn-sm settings-btn gm-settings-btn"
+        type="button"
+        data-bs-toggle="offcanvas"
+        data-bs-target="#settingsPanel"
+        aria-controls="settingsPanel">
+  Settings
+</button>
+
 </div>
 </div>
 </nav>

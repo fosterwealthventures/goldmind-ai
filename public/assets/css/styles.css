@@ -27,6 +27,15 @@
   --text-secondary:var(--fwv-text-dim);
   --panel:var(--fwv-panel);
   --border:var(--fwv-border);
+
+  /* optional btn vars (used with fallbacks below) */
+  --btn-info-bg:#0ea5e9;
+  --btn-info-fg:#ffffff;
+  --btn-info-border:rgba(0,0,0,.15);
+  --btn-info-bg-dark:#22d3ee;
+  --btn-info-fg-dark:#05222e;
+  --btn-info-bg-light:#0ea5e9;
+  --btn-info-fg-light:#063044;
 }
 
 body.theme-light{
@@ -225,7 +234,73 @@ body.theme-light .table thead th{ background:#f4f7fd; }
 }
 /* == /GoldMIND Disclaimer Modal == */
 
-button[data-bs-target="#settingsPanel"] { margin-top: .5rem; }
-@media (min-width: 768px) {
-  button[data-bs-target="#settingsPanel"] { margin-top: 0; }
+/* ===== Navbar Settings alignment & theme-safe styles ===== */
+
+/* Flex host for right-side controls (Help / Enable Alerts / Walkthrough / Settings) */
+.nav-actions, .navbar-actions, .header-actions, #topActions, .site-header .actions {
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
 }
+
+/* Normalize and style the Settings trigger no matter which selector is used */
+#settingsBtn,
+#gmSettingsBtn,
+#gm-settings-btn,
+.gm-settings-btn,
+.settings-btn,
+button[data-bs-target="#settingsPanel"]{
+  position:static !important;
+  top:auto !important; left:auto !important; transform:none !important;
+  display:inline-flex; align-items:center; justify-content:center;
+  height:38px; padding:0 14px; margin:0 0 0 8px; /* space from neighbor */
+  border-radius:999px; font-weight:600; line-height:1; white-space:nowrap;
+  background:var(--btn-info-bg,#0ea5e9);
+  color:var(--btn-info-fg,#ffffff);
+  border:1px solid var(--btn-info-border,rgba(0,0,0,.15));
+  box-shadow:0 2px 6px rgba(0,0,0,.20);
+}
+
+/* Dark mode */
+[data-theme="dark"] #settingsBtn,
+[data-theme="dark"] #gmSettingsBtn,
+[data-theme="dark"] #gm-settings-btn,
+[data-theme="dark"] .gm-settings-btn,
+[data-theme="dark"] .settings-btn,
+.theme-dark #settingsBtn,
+.theme-dark #gmSettingsBtn,
+.theme-dark #gm-settings-btn,
+.theme-dark .gm-settings-btn,
+.theme-dark .settings-btn{
+  background:var(--btn-info-bg-dark,#22d3ee);
+  color:var(--btn-info-fg-dark,#05222e);
+  border-color:rgba(255,255,255,.08);
+}
+
+/* Light mode */
+[data-theme="light"] #settingsBtn,
+[data-theme="light"] #gmSettingsBtn,
+[data-theme="light"] #gm-settings-btn,
+[data-theme="light"] .gm-settings-btn,
+[data-theme="light"] .settings-btn,
+.theme-light #settingsBtn,
+.theme-light #gmSettingsBtn,
+.theme-light #gm-settings-btn,
+.theme-light .gm-settings-btn,
+.theme-light .settings-btn,
+body.theme-light #settingsBtn,
+body.theme-light #gmSettingsBtn,
+body.theme-light #gm-settings-btn,
+body.theme-light .gm-settings-btn,
+body.theme-light .settings-btn{
+  background:var(--btn-info-bg-light,#0ea5e9);
+  color:var(--btn-info-fg-light,#063044);
+  border-color:rgba(0,0,0,.08);
+}
+
+/* Slight breathing room under the verse line on narrow screens */
+.brand-verse{ margin-top:4px; }
+
+/* REMOVE the old margin-top tweak for the settings button (replaced above) */
+/* (intentionally omitted)
+button[data-bs-target="#settingsPanel"] { margin-top:.5rem; }
+@media (min-width:768px){ button[data-bs-target="#settingsPanel"]{ margin-top:0; } }
+*/
