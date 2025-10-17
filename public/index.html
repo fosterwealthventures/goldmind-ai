@@ -1021,7 +1021,7 @@
     }
     /* GM DISCLAIMER STYLES v1.2 END */
 
-    /* Walkthrough tooltip styles */
+    /* Walkthrough tooltip styles - slightly larger, responsive */
     #gm-wt-tooltip {
       position: fixed;
       z-index: 2147483001 !important;
@@ -1029,17 +1029,10 @@
       border: 2px solid rgba(255, 215, 0, 0.5) !important;
       border-radius: 12px !important;
       padding: 1.5rem !important;
-      width: 420px !important;
-      max-width: 420px !important;
-      min-width: 420px !important;
-      height: 280px !important;
-      max-height: 280px !important;
-      min-height: 280px !important;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7) !important;
-      backdrop-filter: blur(10px) !important;
-      -webkit-backdrop-filter: blur(10px) !important;
-      overflow-y: auto !important;
-      overflow-x: hidden !important;
+      width: min(560px, 92vw) !important;   /* was ~480px; ~+15% */
+      height: auto !important;
+      max-height: 72vh !important;          /* allow tall screens */
+      overflow: visible !important;         /* let inner manage scroll */
     }
 
     /* Light mode walkthrough tooltip */
@@ -1049,14 +1042,40 @@
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3) !important;
     }
 
-    /* Walkthrough content styling */
+    /* Light mode content styling */
+    [data-bs-theme="light"] #gm-wt-content {
+      color: #0f172a !important;
+    }
+
+    /* Walkthrough content styling - column layout with scrollable body */
     #gm-wt-content {
       color: #ffffff !important;
       font-size: 0.9rem !important;
       line-height: 1.4 !important;
       height: 100% !important;
-      overflow-y: auto !important;
-      padding-right: 5px !important;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 0.5rem !important;
+    }
+
+    /* Scrollable body section */
+    #gm-wt-content .gm-wt-body {
+      overflow: auto !important;
+      max-height: calc(100% - 80px) !important;
+    }
+
+    /* Sticky footer with buttons */
+    #gm-wt-footer {
+      position: sticky !important;
+      bottom: 0 !important;
+      background: inherit !important;
+      padding-top: 0.5rem !important;
+    }
+
+    /* Ensure buttons have proper contrast in both themes */
+    #gm-wt-footer .btn {
+      border-width: 1px !important;
     }
 
     [data-bs-theme="light"] #gm-wt-content {
@@ -2347,63 +2366,31 @@ Submit Learning Data
 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
 <div class="modal-body">
-<div class="accordion" id="helpAccordion">
-<div class="accordion-item">
-<h2 class="accordion-header" id="headingOne">
-<button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
-Getting Started
-</button>
-</h2>
-<div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#helpAccordion">
-<div class="accordion-body">
-<p>Welcome to GoldMIND AI! Here's how to get started:</p>
-<ol>
-<li>Configure your trading preferences in the AI Decision Engine section</li>
-<li>Select your preferred technical indicators</li>
-<li>Click "Get Enhanced AI Recommendation" for personalized trading insights</li>
-<li>Review the analysis and reasoning before making trading decisions</li>
-</ol>
-</div>
-</div>
-</div>
-<div class="accordion-item">
-<h2 class="accordion-header" id="headingTwo">
-<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-Understanding Predictions
-</button>
-</h2>
-<div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#helpAccordion">
-<div class="accordion-body">
-<p>Our AI predictions are based on:</p>
-<ul>
-<li>Historical price patterns and technical indicators</li>
-<li>Market sentiment analysis from news and social media</li>
-<li>Macro-economic factors affecting gold prices</li>
-<li>Advanced machine learning models including LSTM networks</li>
-</ul>
-<p>Remember that all predictions are for informational purposes and should not be considered financial advice.</p>
-</div>
-</div>
-</div>
-<div class="accordion-item">
-<h2 class="accordion-header" id="headingThree">
-<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
-Risk Management
-</button>
-</h2>
-<div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#helpAccordion">
-<div class="accordion-body">
-<p>Proper risk management is crucial for successful trading:</p>
-<ul>
-<li>Set appropriate stop-loss levels based on your risk tolerance</li>
-<li>Consider position sizing methods like Kelly Criterion or fixed percentage</li>
-<li>Maintain a favorable risk-to-reward ratio (typically 1:2 or better)</li>
-<li>Monitor for cognitive biases that might affect your decisions</li>
-</ul>
-</div>
-</div>
-</div>
-</div>
+  <div class="mb-3">
+    <h5 class="text-primary mb-3">GoldMIND AI – Enhanced Features Guide</h5>
+
+    <ol class="mb-4" style="padding-left: 1.2rem;">
+      <li class="mb-2"><strong>🏆 Multi-Asset Gold Prediction:</strong> Unified analysis across spot gold, futures, options, and ETFs with integrated risk tolerance.</li>
+
+      <li class="mb-2"><strong>📊 Market Overview:</strong> Real-time market status, AI recommendations, bias alerts, and portfolio overview.</li>
+
+      <li class="mb-2"><strong>🚨 Enhanced Alert System:</strong> Sophisticated browser notifications with sound alerts for price movements, volatility spikes, and news events.</li>
+
+      <li class="mb-2"><strong>🎯 Enhanced Decision Engine:</strong> Advanced AI with integrated risk management including drawdown limits, position sizing, and risk tolerance.</li>
+
+      <li class="mb-2"><strong>📈 Custom Indicator Integration:</strong> Select which technical and gold-specific indicators influence AI recommendations.</li>
+
+      <li class="mb-2"><strong>🔮 Advanced Analysis:</strong> LSTM predictions and sentiment analysis with enhanced accuracy.</li>
+
+      <li class="mb-2"><strong>🧠 Behavioral Intelligence:</strong> Cognitive bias mapping and transparent reasoning processes.</li>
+
+      <li class="mb-2"><strong>📚 Continuous Learning:</strong> Enhanced feedback system that improves recommendations based on real trading outcomes.</li>
+    </ol>
+
+    <div class="alert alert-info">
+      <strong>💡 Key Enhancement:</strong> This system focuses on providing sophisticated recommendations rather than trade execution. Use these insights to make informed decisions in your preferred trading platform.
+    </div>
+  </div>
 </div>
 <div class="modal-footer">
 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -2499,7 +2486,7 @@ Risk Management
 </div>
 </div>
 <div class="d-grid">
-<button class="btn btn-gold">Save Settings</button>
+  <button class="btn btn-gold" id="saveSettingsBtn">Save Settings</button>
 </div>
 </div>
 </div>
@@ -2511,14 +2498,22 @@ Risk Management
 <h2 id="gmDisclaimerTitle">GoldMIND AI Disclaimer</h2>
 </div>
 <div id="gmDisclaimerBody">
-<p>GoldMIND AI is an educational tool designed to assist with market analysis and trading decisions. It is not financial advice, and should not be treated as such.</p>
-<p class="muted">The information provided by GoldMIND AI is for educational purposes only. Trading financial instruments carries a high level of risk and may not be suitable for all investors. Before deciding to trade, you should carefully consider your investment objectives, level of experience, and risk appetite.</p>
-<p>The possibility exists that you could sustain a loss of some or all of your initial investment. Therefore, you should not invest money that you cannot afford to lose. You should be aware of all the risks associated with trading and seek advice from an independent financial advisor if you have any doubts.</p>
-<p class="muted">Past performance is not indicative of future results. GoldMIND AI makes no representation or warranty regarding the accuracy or completeness of the information provided.</p>
-<div class="gmRow">
-<input type="checkbox" id="gmAcknowledge">
-<label for="gmAcknowledge">I acknowledge that I have read and understood this disclaimer</label>
-</div>
+  <p>Welcome to GoldMIND AI. GoldMIND is a trading companion that offers research and model-generated recommendations for educational purposes to help you analyze markets and strengthen your trading process.</p>
+
+  <p>GoldMIND AI is not a broker-dealer, investment adviser, or fiduciary. All market data, analytics, and recommendations are provided for educational and informational purposes only.</p>
+
+  <p><strong>Behavioral & Bias Awareness:</strong> GoldMIND may highlight potential psychological/behavioral trading biases (e.g., confirmation bias, loss aversion, anchoring, recency, overconfidence) inferred from your inputs and settings. These are heuristic indicators intended to encourage self-reflection and discipline; they are not diagnoses, clinical advice, or guarantees of performance.</p>
+
+  <p>This platform does not execute trades, place orders, or simulate trading activity, and it does not connect to any brokerage account.</p>
+
+  <p>The insights and recommendations generated by GoldMIND AI should not be interpreted as personalized financial advice or a recommendation to buy or sell any security. You are solely responsible for your investment decisions and outcomes.</p>
+
+  <p>By selecting "I Agree," you confirm that you understand and accept these terms.</p>
+
+  <div class="gmRow">
+    <input type="checkbox" id="gmAcknowledge">
+    <label for="gmAcknowledge">I understand GoldMIND AI is a trading companion offering research and recommendations (including bias-awareness indicators) for educational purposes only, and not financial advice.</label>
+  </div>
 </div>
 <div id="gmDisclaimerActions">
 <div class="gm-button-row">
@@ -2598,6 +2593,101 @@ Risk Management
   } else {
     init();
   }
+
+  // Settings persistence
+  (() => {
+    const SETTINGS_KEY = "goldmind.settings.notifications";
+
+    // Load settings from localStorage
+    const loadSettings = () => {
+      const stored = localStorage.getItem(SETTINGS_KEY);
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          console.warn("Failed to parse stored settings:", e);
+        }
+      }
+      return {};
+    };
+
+    // Save settings to localStorage
+    const saveSettings = (settings) => {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    };
+
+    // Initialize settings on page load
+    const initSettings = () => {
+      const settings = loadSettings();
+
+      // Apply settings to form elements
+      const priceAlerts = document.getElementById("priceAlerts");
+      const predictionAlerts = document.getElementById("predictionAlerts");
+      const dailySummary = document.getElementById("dailySummary");
+      const alertFrequency = document.getElementById("alertFrequency");
+      const priceThreshold = document.getElementById("priceThreshold");
+      const volatilityAlerts = document.getElementById("volatilityAlerts");
+      const economicNewsAlerts = document.getElementById("economicNewsAlerts");
+
+      if (priceAlerts && settings.priceAlerts !== undefined) {
+        priceAlerts.checked = settings.priceAlerts;
+      }
+      if (predictionAlerts && settings.predictionAlerts !== undefined) {
+        predictionAlerts.checked = settings.predictionAlerts;
+      }
+      if (dailySummary && settings.dailySummary !== undefined) {
+        dailySummary.checked = settings.dailySummary;
+      }
+      if (alertFrequency && settings.alertFrequency) {
+        alertFrequency.value = settings.alertFrequency;
+      }
+      if (priceThreshold && settings.priceThreshold) {
+        priceThreshold.value = settings.priceThreshold;
+      }
+      if (volatilityAlerts && settings.volatilityAlerts !== undefined) {
+        volatilityAlerts.checked = settings.volatilityAlerts;
+      }
+      if (economicNewsAlerts && settings.economicNewsAlerts !== undefined) {
+        economicNewsAlerts.checked = settings.economicNewsAlerts;
+      }
+    };
+
+    // Save settings when form changes
+    const setupSettingsListeners = () => {
+      const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+      if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener("click", () => {
+          const settings = {
+            priceAlerts: document.getElementById("priceAlerts")?.checked ?? true,
+            predictionAlerts: document.getElementById("predictionAlerts")?.checked ?? true,
+            dailySummary: document.getElementById("dailySummary")?.checked ?? false,
+            alertFrequency: document.getElementById("alertFrequency")?.value ?? "15min",
+            priceThreshold: document.getElementById("priceThreshold")?.value ?? "2",
+            volatilityAlerts: document.getElementById("volatilityAlerts")?.checked ?? true,
+            economicNewsAlerts: document.getElementById("economicNewsAlerts")?.checked ?? false
+          };
+
+          saveSettings(settings);
+
+          // Show success notification
+          if (typeof showNotification === 'function') {
+            showNotification("Settings Saved", "Your notification preferences have been saved.");
+          }
+        });
+      }
+    };
+
+    // Initialize settings when DOM is ready
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => {
+        initSettings();
+        setupSettingsListeners();
+      });
+    } else {
+      initSettings();
+      setupSettingsListeners();
+    }
+  })();
 })();
 
 // Notification System
@@ -2651,22 +2741,69 @@ Risk Management
   // Test alert button
   const testAlertBtn = document.getElementById("testAlert");
   if (testAlertBtn) {
+    // Disable test button if notifications are blocked
+    const updateTestButtonState = () => {
+      if ("Notification" in window) {
+        testAlertBtn.disabled = Notification.permission === "denied";
+      }
+    };
+
+    // Initial state check
+    updateTestButtonState();
+
+    // Update state when permission changes
+    if ("Notification" in window) {
+      Notification.requestPermission().then(updateTestButtonState);
+    }
+
     testAlertBtn.addEventListener("click", () => {
-      showNotification("Test Alert", "This is a test notification from GoldMIND AI.");
-      
-      // Add to alerts list
-      const alertsList = document.getElementById("alertsList");
-      if (alertsList) {
-        const alertItem = document.createElement("li");
-        alertItem.className = "list-group-item d-flex justify-content-between align-items-center";
-        alertItem.innerHTML = `
-          <div>
-            <div>Test Alert <span class="badge bg-info">Info</span></div>
-            <small class="text-soft">This is a test notification</small>
+      if ("Notification" in window && Notification.permission === "granted") {
+        showNotification("Test Alert", "This is a test notification from GoldMIND AI.");
+
+        // Add to alerts list
+        const alertsList = document.getElementById("alertsList");
+        if (alertsList) {
+          const alertItem = document.createElement("li");
+          alertItem.className = "list-group-item d-flex justify-content-between align-items-center";
+          alertItem.innerHTML = `
+            <div>
+              <div>Test Alert <span class="badge bg-info">Info</span></div>
+              <small class="text-soft">This is a test notification</small>
+            </div>
+            <small class="text-soft">Just now</small>
+          `;
+          alertsList.insertBefore(alertItem, alertsList.firstChild);
+        }
+      } else if ("Notification" in window && Notification.permission === "denied") {
+        // Show banner prompting user to enable notifications
+        const banner = document.createElement("div");
+        banner.className = "notification-banner";
+        banner.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>Enable Notifications Required</strong>
+              <p class="mb-0">Please enable notifications in your browser settings to receive alerts</p>
+            </div>
+            <div>
+              <button class="btn btn-light btn-sm" id="enableFromBanner">Enable</button>
+              <button class="btn btn-outline-light btn-sm" id="dismissBanner">Dismiss</button>
+            </div>
           </div>
-          <small class="text-soft">Just now</small>
         `;
-        alertsList.insertBefore(alertItem, alertsList.firstChild);
+        document.body.appendChild(banner);
+
+        document.getElementById("enableFromBanner")?.addEventListener("click", () => {
+          Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+              banner.remove();
+              updateTestButtonState();
+            }
+          });
+        });
+
+        document.getElementById("dismissBanner")?.addEventListener("click", () => {
+          banner.remove();
+        });
       }
     });
   }
@@ -2680,10 +2817,20 @@ Risk Management
           if (permission === "granted") {
             showNotification("Notifications Enabled", "You will now receive price alerts and trading signals.");
             enableNotificationsBtn.classList.add("d-none");
+
+            // Persist alerts enabled state
+            localStorage.setItem("goldmind.alerts.enabled", "true");
           }
         });
       }
     });
+  }
+
+  // Check if alerts were previously enabled and hide button
+  if (localStorage.getItem("goldmind.alerts.enabled") === "true") {
+    if (enableNotificationsBtn) {
+      enableNotificationsBtn.classList.add("d-none");
+    }
   }
 })();
 
@@ -3376,19 +3523,20 @@ STEP 6: FINAL RECOMMENDATION
 
 // Disclaimer Modal with Enhanced Features
 (() => {
+  // Recreate variables for disclaimer elements
   const disclaimerOverlay = document.getElementById('gmDisclaimerOverlay');
   const agreeBtn = document.getElementById('gmAgreeBtn');
   const declineBtn = document.getElementById('gmDeclineBtn');
+  const acknowledgeCheckbox = document.getElementById('gmAcknowledge');
+
+  // Handle decline button - redirect to company site
   if (declineBtn) {
     declineBtn.addEventListener('click', function() {
-      // Redirect to external URL or close modal
-      // For this example, we'll just close the modal
-      closeDisclaimer();
-      // Optionally, redirect to a specific URL if the user declines
-      // window.location.href = 'https://fosterwealthventures.com/';
+      // Redirect to company site
+      window.location.href = 'https://fosterwealthventures.com/';
     });
   }
-  
+
   // Create dev hooks for external access
   window.GoldmindDisclaimer = {
     reset: () => {
@@ -3398,20 +3546,19 @@ STEP 6: FINAL RECOMMENDATION
     show: showDisclaimer,
     close: closeDisclaimer,
     hasAccepted: () => {
-      return localStorage.getItem('goldmind.disclaimer.accepted.v1') === 'true';
+      const stored = localStorage.getItem('goldmind.disclaimer.accepted.v1');
+      return stored ? JSON.parse(stored).accepted === true : false;
     }
   };
-  
-  // Handle checkbox change
-  if (acknowledgeCheckbox) {
+
+  // Bind checkbox change event to enable/disable Agree button
+  if (acknowledgeCheckbox && agreeBtn) {
     acknowledgeCheckbox.addEventListener('change', function() {
-      if (agreeBtn) {
-        agreeBtn.disabled = !this.checked;
-      }
+      agreeBtn.disabled = !this.checked;
     });
   }
-  
-  // Handle agree button
+
+  // Handle agree button - save to localStorage and dispatch events
   if (agreeBtn) {
     agreeBtn.addEventListener('click', function() {
       const consentData = {
@@ -3419,247 +3566,320 @@ STEP 6: FINAL RECOMMENDATION
         ts: new Date().toISOString(),
         version: 'v1'
       };
-      
+
       // Save to localStorage with versioned key
       localStorage.setItem('goldmind.disclaimer.accepted.v1', JSON.stringify(consentData));
-      
-      // Dispatch custom event
+
+      // Dispatch custom event for disclaimer acceptance
       const event = new CustomEvent('goldmind:disclaimer:accepted', {
         detail: consentData
       });
       document.dispatchEvent(event);
-      
+
+      // Close disclaimer
       closeDisclaimer();
-      
-      // Show success notification
-      if (typeof showNotification === 'function') {
-        showNotification('Disclaimer Accepted', 'Thank you for accepting our terms. You can now use all features of GoldMIND AI.');
-      }
+
+      // Auto-start the tour immediately after acceptance
+      try { (startWalkthrough || window.startWalkthrough || window.startGoldMindTour)?.(); } catch(e) { console.warn('[Walkthrough] start failed', e); }
     });
   }
-  
-  // Function to show disclaimer
+
+  // Function to show disclaimer modal
   function showDisclaimer() {
-    disclaimerOverlay.style.display = 'flex';
-    document.body.classList.add('gm-disclaimer-open');
-    
-    // Focus management
-    const firstFocusable = document.querySelector('#gmAcknowledge');
-    if (firstFocusable) {
-      firstFocusable.focus();
+    if (disclaimerOverlay) {
+      disclaimerOverlay.style.display = 'flex';
+      document.body.classList.add('gm-disclaimer-open');
+
+      // Focus management - trap focus on checkbox
+      if (acknowledgeCheckbox) {
+        acknowledgeCheckbox.focus();
+      }
+
+      // Keyboard navigation - Escape to close
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          closeDisclaimer();
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+
+      // Click outside to close
+      disclaimerOverlay.addEventListener('click', (e) => {
+        if (e.target === disclaimerOverlay) {
+          closeDisclaimer();
+        }
+      });
+
+      // Cleanup function
+      const cleanup = () => {
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+
+      // Store cleanup function for later use
+      disclaimerOverlay._cleanup = cleanup;
     }
-    
-    // Keyboard navigation
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        closeDisclaimer();
-      }
-    };
-    
-    document.addEventListener('keydown', handleKeyDown);
-    
-    // Remove event listener when modal is closed
-    disclaimerOverlay.addEventListener('click', (e) => {
-      if (e.target === disclaimerOverlay) {
-        closeDisclaimer();
-      }
-    });
-    
-    // Remove keydown listener when modal is closed
-    const removeKeyDown = () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-    
-    disclaimerOverlay.addEventListener('hidden', removeKeyDown);
   }
-  
-  // Function to close disclaimer
+
+  // Function to close disclaimer modal
   function closeDisclaimer() {
-    disclaimerOverlay.style.display = 'none';
-    document.body.classList.remove('gm-disclaimer-open');
+    if (disclaimerOverlay) {
+      disclaimerOverlay.style.display = 'none';
+      document.body.classList.remove('gm-disclaimer-open');
+
+      // Run cleanup if available
+      if (disclaimerOverlay._cleanup) {
+        disclaimerOverlay._cleanup();
+      }
+    }
   }
-  
-  // Initialize disclaimer on first visit
+
+  // Function to show walkthrough prompt CTA
+  function showWalkthroughPrompt() {
+    // Create a toast notification for walkthrough prompt
+    const toast = document.createElement('div');
+    toast.className = 'position-fixed top-0 end-0 m-3 alert alert-info alert-dismissible fade show';
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+      <div class="d-flex align-items-center">
+        <div>
+          <strong>🚀 Ready to explore GoldMIND AI?</strong><br>
+          <small>Take a quick tour to discover powerful features that can enhance your trading decisions.</small>
+        </div>
+        <div class="ms-3">
+          <button class="btn btn-sm btn-primary me-2" id="startTourBtn">Start Tour</button>
+          <button class="btn btn-sm btn-outline-secondary" id="dismissTourBtn">Maybe Later</button>
+        </div>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+
+    document.body.appendChild(toast);
+
+    // Handle tour button click
+    const startTourBtn = document.getElementById('startTourBtn');
+    if (startTourBtn) {
+      startTourBtn.addEventListener('click', () => {
+        // Dispatch custom event for walkthrough prompt
+        const tourEvent = new CustomEvent('goldmind:tour:prompt', {
+          detail: { action: 'start' }
+        });
+        document.dispatchEvent(tourEvent);
+
+        // Start walkthrough
+        (startWalkthrough || window.startWalkthrough || window.startGoldMindTour)?.();
+
+        toast.remove();
+      });
+    }
+
+    // Handle dismiss button
+    const dismissTourBtn = document.getElementById('dismissTourBtn');
+    if (dismissTourBtn) {
+      dismissTourBtn.addEventListener('click', () => {
+        toast.remove();
+      });
+    }
+
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.remove();
+      }
+    }, 10000);
+  }
+
+  // Initialize disclaimer on first load when no acceptance record exists
   const hasAcceptedDisclaimer = localStorage.getItem('goldmind.disclaimer.accepted.v1');
   if (!hasAcceptedDisclaimer) {
-    showDisclaimer();
+    // Show disclaimer immediately on first load
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', showDisclaimer);
+    } else {
+      showDisclaimer();
+    }
   }
 })();
 
 // Walkthrough System with Enhanced Features
 (() => {
-  // Define the walkthrough steps
+  // Listen for goldmind:tour:prompt event from Task 1
+  document.addEventListener('goldmind:tour:prompt', (e) => {
+    const toast = document.createElement('div');
+    toast.className = 'position-fixed top-0 end-0 m-3 alert alert-info alert-dismissible fade show';
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+      <div class="d-flex align-items-center">
+        <div>
+          <strong>🚀 Ready for a quick tour?</strong><br>
+          <small>Click Walkthrough to start the 60-second tour.</small>
+        </div>
+        <button class="btn btn-sm btn-primary ms-3" id="tourPromptBtn">Got it</button>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+
+    document.body.appendChild(toast);
+
+    // Auto-dismiss after 5 seconds or on button click
+    const dismissToast = () => {
+      toast.remove();
+    };
+
+    document.getElementById('tourPromptBtn')?.addEventListener('click', dismissToast);
+    setTimeout(dismissToast, 5000);
+  });
+
+  // Define the walkthrough steps (trimmed for 420x280px container)
   const STEPS = [
     {
       selector: ".navbar-brand",
       title: "👋 Welcome to GoldMIND AI!",
-      benefit:
-        "You're about to discover how to leverage AI for smarter gold trading. This 60-second tour will show you the 10 most powerful features that give you an edge in the market.",
-      tip:
-        "💡 You can exit anytime by pressing ESC or clicking 'Skip'. Use arrow keys ← → to navigate, or click the buttons below.",
-      details:
-        "GoldMIND AI combines machine learning, technical analysis, and risk management into one intelligent trading companion. Let's get started!"
+      benefit: "Discover AI-powered gold trading features that give you an edge in the market.",
+      tip: "💡 Exit anytime with ESC or 'Skip'. Use arrow keys or buttons to navigate.",
+      details: "GoldMIND AI combines ML, technical analysis, and risk management into one intelligent trading companion."
     },
 
     // 1) Multi-Asset Gold Selection
     {
       selector: ".asset-type-card[data-asset-type='spot']",
       title: "🏆 Multi-Asset Gold Selection",
-      benefit:
-        "Trade spot gold, futures, options, or ETFs - all from one dashboard. Switch asset types based on your strategy and market conditions.",
-      tip:
-        "💡 Click any card to activate. Start with Spot Gold (XAUUSD) if you're new - it's the most liquid.",
-      details:
-        "Each asset type has unique characteristics: Spot for simplicity, Futures for leverage, Options for hedging, ETFs for long-term holds."
+      benefit: "Trade spot gold, futures, options, or ETFs from one dashboard.",
+      tip: "💡 Click any card to activate. Start with Spot Gold (XAUUSD) - most liquid.",
+      details: "Each type has unique traits: Spot for simplicity, Futures for leverage, Options for hedging, ETFs for long-term."
     },
-   
+
     // 2) Settings
     {
       selector: '#settingsPanel, #settingsDrawer, .settings-drawer, a[href="#settings"], #settingsBtn, #settingsToggle, [data-action="open-settings"], .open-settings',
-      title: "Settings",
-      benefit: "Make GoldMIND yours. Set your defaults so you don't re-tune the app every session.",
-      details:
-        "• Smooth lines on charts — toggle line smoothing across charts.\n" +
-        "• Default trading style — choose the lens (Scalper / Intraday / Swing) that frames recommendations and risk context.\n" +
-        "• Default time frame — pick the chart window you want to land on first (e.g., 1h).\n" +
-        "• Daily profit target (USD) — used for your progress/risk meters during the session.\n" +
-        "• Alert settings — control check frequency, price-change threshold (%), and volatility-spike alerts.",
-      tip: "💾 Preferences save locally in your browser and can be changed anytime as conditions change."
+      title: "⚙️ Settings",
+      benefit: "Customize GoldMIND for your trading style and preferences.",
+      details: "• Chart smoothing, default timeframes, trading style\n• Daily profit targets and alert thresholds\n• Notification preferences and risk parameters",
+      tip: "💾 Settings save locally and sync across sessions."
     },
 
     // 3) Live Price Performance Chart
     {
       selector: "#goldPriceChart",
       title: "📈 Live Price Performance Chart",
-      benefit:
-        "Track 30-day gold price trends at a glance. Toggle 'Smooth lines' to see cleaner patterns or sharp lines for precise analysis.",
-      tip:
-        "💡 Use this chart to identify support/resistance levels before requesting an AI recommendation.",
-      power_tip:
-        "Manual charting takes 15+ minutes. This updates every 10 seconds automatically."
+      benefit: "Track 30-day gold trends with real-time updates every 10 seconds.",
+      tip: "💡 Toggle 'Smooth lines' for patterns or sharp lines for precision.",
+      details: "Identify support/resistance levels before requesting AI recommendations."
     },
 
     // 4) Enhanced Alert Center
     {
       selector: "#alertsList",
       title: "🚨 Enhanced Alert Center",
-      benefit:
-        "Get instant browser + sound notifications when gold breaks key price levels (default: ±2% moves). Never miss a trading opportunity again.",
-      tip:
-        "💡 Click 'Enable browser notifications' now. Set your threshold in Settings (aggressive: 1%, conservative: 3%).",
-      real_use_case:
-        "Example: Gold breaks $2,040 → Alert → Check AI → Trade decision in 30 seconds."
+      benefit: "Get instant notifications when gold breaks key price levels.",
+      tip: "💡 Enable browser notifications. Set thresholds in Settings (1-3%).",
+      details: "Example: Gold breaks $2,040 → Alert → Check AI → Trade in 30 seconds."
     },
 
-    
     // 5) Risk Management
     {
       selector: ".risk-management-card",
-      title: "⚠️ Risk Management - Protect Your Capital",
-      benefit:
-        "Set guardrails so the AI NEVER suggests trades exceeding your comfort level. Define max drawdown, position sizing method, and stop-loss strategy.",
-      tip:
-        "💡 Start conservative: 10% Max Drawdown + ATR-Based Stop Loss + Kelly Criterion sizing. Adjust as you gain confidence.",
-      why_critical:
-        "This is what separates smart traders from gamblers. Most AI tools ignore risk - GoldMIND forces downside protection BEFORE entry."
+      title: "⚠️ Risk Management",
+      benefit: "Set guardrails so AI never suggests trades beyond your comfort level.",
+      tip: "💡 Start conservative: 10% max drawdown + ATR stops + Kelly sizing.",
+      details: "This protects capital. Most AI tools ignore risk - GoldMIND enforces it."
     },
 
     // 6) AI Decision Engine
     {
       selector: "#resolveBtn",
-      title: "🎯 AI Decision Engine - Your Trading Brain",
-      benefit:
-        "Unlike tools that just say 'BUY', GoldMIND tells you HOW MUCH to buy, WHERE to enter/exit, and WHEN to cut losses - all adjusted to YOUR risk tolerance.",
-      tip:
-        "💡 Fill in your trading style, investment amount, and daily goal. The AI customizes recommendations to YOUR profile.",
-      details:
-        "This combines LSTM predictions, technical indicators, and risk management into one unified recommendation. Most platforms give you raw data - GoldMIND gives you a complete trading plan."
+      title: "🎯 AI Decision Engine",
+      benefit: "Get complete trading plans: position size, entry/exit, risk management.",
+      tip: "💡 Fill your style, amount, goals. AI customizes to YOUR profile.",
+      details: "Combines LSTM, indicators & risk into unified recommendations."
     },
 
     // 7) Custom Indicators
     {
       selector: "#indicatorGrid",
-      title: "📊 Custom Indicators - Fine-Tune AI Logic",
-      benefit:
-        "Select which technical signals (RSI, MACD) and gold-specific factors (DXY, Real Yields) influence AI recommendations. See how different combos change confidence scores.",
-      tip:
-        "💡 Day traders: RSI + MACD + Volume. Swing traders: SMA + DXY + Real Yields. Try 3-5 indicators to start.",
-      power_tip:
-        "The AI shows you live impact: Adding DXY might raise confidence from 68% → 82% if USD is weakening."
+      title: "📊 Custom Indicators",
+      benefit: "Select which signals influence AI recommendations and confidence scores.",
+      tip: "💡 Day traders: RSI + MACD. Swing traders: SMA + DXY. Start with 3-5.",
+      details: "See live impact: Adding indicators can boost confidence 68% → 82%."
     },
 
     // 8) LSTM Predictions
     {
       selector: ".predictive-analysis-card",
       title: "🔮 LSTM Price Predictions",
-      benefit:
-        "Neural network forecasts for 1-day, 7-day, and 30-day price targets with confidence levels. Use as ONE input (not gospel) in your decision.",
-      tip:
-        "💡 Check predictions BEFORE entering a trade. If AI says 'UP' but you're planning to short, reconsider.",
-      accuracy:
-        "Current model: 83.5% accuracy over last 30 days (tracks performance in real-time)."
+      benefit: "Neural network forecasts for 1, 7, and 30-day price targets.",
+      tip: "💡 Use as ONE input in decisions. Don't treat as guaranteed outcomes.",
+      details: "Current accuracy: 83.5% over last 30 days (real-time tracking)."
     },
 
     // 9) Learning Feedback
     {
       selector: "#submitLearningData",
-      title: "🧠 Learning Feedback - Make AI Smarter",
-      benefit:
-        "Report trade outcomes so the AI learns YOUR unique patterns - when you follow recommendations, what works for your style, risk tolerance, etc.",
-      tip:
-        "💡 Submit feedback even if you DIDN'T follow the AI. Explain why (too risky, bad timing). This personalizes future recommendations.",
-      impact:
-        "Users who submit 3+ feedbacks see 15% higher accuracy - the AI adapts to YOU."
+      title: "🧠 Learning Feedback",
+      benefit: "Report outcomes so AI learns YOUR patterns and improves accuracy.",
+      tip: "💡 Submit even if you don't follow AI. Explain why for personalization.",
+      details: "Users with 3+ feedbacks see 15% higher accuracy."
     },
 
     // 10) Completion
     {
       selector: "footer",
       title: "🎉 You're Ready to Trade Smarter!",
-      benefit:
-        "You now understand all 8 core features. Re-run this tour anytime from the navbar 'Walkthrough' button.",
-      tip:
-        "💡 Next steps: (1) Enable alerts, (2) Set risk tolerance, (3) Get your first AI recommendation!",
-      final_note:
-        "Remember: GoldMIND recommends, YOU decide. Always validate AI insights with your own research."
+      benefit: "You now know all core features. Re-run tour anytime from navbar.",
+      tip: "💡 Next: Enable alerts, set risk tolerance, get first AI recommendation!",
+      details: "Remember: GoldMIND recommends, YOU decide. Always do your own research."
     }
   ];
   
   const walkthroughBtn = document.getElementById('walkthroughBtn');
-  
+
   if (walkthroughBtn) {
-    walkthroughBtn.addEventListener('click', function() {
-      startWalkthrough();
+    walkthroughBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      try {
+        // Defensive: end any stale tour state before starting fresh
+        window.GM_Tour?.end?.();
+      } catch (e) { /* no-op */ }
+
+      (startWalkthrough || window.startWalkthrough || window.startGoldMindTour)?.();
     });
   }
-  
+
   function startWalkthrough() {
-    // Remove any existing walkthrough elements
+    // Always remove any previous tooltip/mask/highlight and start at step 1
     const existingTooltip = document.getElementById('gm-wt-tooltip');
     const existingMask = document.getElementById('gm-wt-mask');
-    
+
     if (existingTooltip) existingTooltip.remove();
     if (existingMask) existingMask.remove();
-    
+    document.querySelectorAll('.gm-wt-highlight').forEach(el => {
+      el.classList.remove('gm-wt-highlight');
+    });
+
     let currentStep = 0;
-    
-    // Create tooltip element
+
+    // Create tooltip element (uniform 420x280px, no internal scroll)
     const tooltip = document.createElement('div');
     tooltip.id = 'gm-wt-tooltip';
+    tooltip.style.overflow = 'hidden !important';
     tooltip.innerHTML = `
-      <div id="gm-wt-content">
+      <div id="gm-wt-content" style="height: 100% !important; overflow: hidden !important;">
         <h5 id="gm-wt-title">${STEPS[0].title}</h5>
-        <div id="gm-wt-benefit" class="mb-2">${STEPS[0].benefit}</div>
-        <div id="gm-wt-details" class="mb-2">${STEPS[0].details}</div>
-        <div id="gm-wt-tip" class="mb-2">${STEPS[0].tip}</div>
-        <div class="d-flex justify-content-between align-items-center mt-3">
-          <button id="gm-wt-prev" class="btn btn-sm btn-outline-light">Previous</button>
-          <div id="gm-wt-dots">
-            ${STEPS.map((_, i) => `<span>${i === 0 ? '●' : '○'}</span>`).join('')}
-          </div>
-          <button id="gm-wt-next" class="btn btn-sm btn-outline-light">Next</button>
+        <div class="gm-wt-body" style="overflow: auto !important; max-height: calc(100% - 80px);">
+          <div id="gm-wt-benefit" class="mb-2">${STEPS[0].benefit}</div>
+          <div id="gm-wt-details" class="mb-2">${STEPS[0].details}</div>
+          <div id="gm-wt-tip" class="mb-2">${STEPS[0].tip}</div>
         </div>
-        <button id="gm-wt-skip" class="btn btn-sm btn-outline-warning mt-2 w-100">Skip Tour</button>
+        <div id="gm-wt-footer" class="mt-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <button id="gm-wt-prev" class="btn btn-sm btn-outline-light">Previous</button>
+            <div id="gm-wt-dots">
+              ${STEPS.map((_, i) => `<span>${i === 0 ? '●' : '○'}</span>`).join('')}
+            </div>
+            <button id="gm-wt-next" class="btn btn-sm btn-outline-light">Next</button>
+          </div>
+          <button id="gm-wt-skip" class="btn btn-sm btn-outline-warning w-100">Skip Tour</button>
+        </div>
       </div>
       <button id="gm-wt-close" class="position-absolute top-0 end-0 m-2 btn btn-link text-white p-0">
         <i class="fas fa-times"></i>
@@ -3672,7 +3892,7 @@ STEP 6: FINAL RECOMMENDATION
     mask.id = 'gm-wt-mask';
     document.body.appendChild(mask);
     
-    // Function to position tooltip
+    // Function to position tooltip centered over target element
     const positionTooltip = () => {
       const element = document.querySelector(STEPS[currentStep].selector);
       if (element) {
@@ -3680,38 +3900,21 @@ STEP 6: FINAL RECOMMENDATION
         document.querySelectorAll('.gm-wt-highlight').forEach(el => {
           el.classList.remove('gm-wt-highlight');
         });
-        
+
         // Add highlight to current element
         element.classList.add('gm-wt-highlight');
-        
+
         const rect = element.getBoundingClientRect();
-        const tooltipRect = tooltip.getBoundingClientRect();
-        
-        // Determine best position (above, below, left, or right)
-        let top, left;
-        
-        // Try to position below first
-        if (rect.bottom + tooltipRect.height + 10 < window.innerHeight) {
-          top = rect.bottom + 10;
-          left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
-        } 
-        // Try to position above
-        else if (rect.top - tooltipRect.height - 10 > 0) {
-          top = rect.top - tooltipRect.height - 10;
-          left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
-        }
-        // Try to position to the right
-        else if (rect.right + tooltipRect.width + 10 < window.innerWidth) {
-          top = rect.top + (rect.height / 2) - (tooltipRect.height / 2);
-          left = rect.right + 10;
-        }
-        // Position to the left as last resort
-        else {
-          top = rect.top + (rect.height / 2) - (tooltipRect.height / 2);
-          left = rect.left - tooltipRect.width - 10;
-        }
-        
-        // Ensure tooltip stays within viewport
+        const tooltipRect = { width: 420, height: 280 }; // Fixed size
+
+        // Calculate center position over target
+        const targetCenterX = rect.left + (rect.width / 2);
+        const targetCenterY = rect.top + (rect.height / 2);
+
+        let left = targetCenterX - (tooltipRect.width / 2);
+        let top = targetCenterY - (tooltipRect.height / 2);
+
+        // Clamp to viewport boundaries while maintaining overlap
         if (left < 10) left = 10;
         if (left + tooltipRect.width > window.innerWidth - 10) {
           left = window.innerWidth - tooltipRect.width - 10;
@@ -3720,10 +3923,10 @@ STEP 6: FINAL RECOMMENDATION
         if (top + tooltipRect.height > window.innerHeight - 10) {
           top = window.innerHeight - tooltipRect.height - 10;
         }
-        
+
         tooltip.style.top = `${top}px`;
         tooltip.style.left = `${left}px`;
-        
+
         // Scroll element into view if needed
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -3731,7 +3934,6 @@ STEP 6: FINAL RECOMMENDATION
     
     // Function to update step
     const updateStep = () => {
-      gmEnsureSettingsOpen(!!STEPS[currentStep]?.openSettings || !!step?.openSettings);
       const title = document.getElementById('gm-wt-title');
       const benefit = document.getElementById('gm-wt-benefit');
       const details = document.getElementById('gm-wt-details');
@@ -3739,19 +3941,34 @@ STEP 6: FINAL RECOMMENDATION
       const dots = document.querySelectorAll('#gm-wt-dots span');
       const prevBtn = document.getElementById('gm-wt-prev');
       const nextBtn = document.getElementById('gm-wt-next');
-      
+
       if (title) title.textContent = STEPS[currentStep].title;
       if (benefit) benefit.textContent = STEPS[currentStep].benefit;
       if (details) details.textContent = STEPS[currentStep].details || '';
       if (tip) tip.textContent = STEPS[currentStep].tip || '';
-      
+
       dots.forEach((dot, i) => {
         dot.textContent = i === currentStep ? '●' : '○';
       });
-      
+
       if (prevBtn) prevBtn.style.visibility = currentStep === 0 ? 'hidden' : 'visible';
       if (nextBtn) nextBtn.textContent = currentStep === STEPS.length - 1 ? 'Finish' : 'Next';
-      
+
+      // Auto-open Settings offcanvas on Settings slide
+      if (currentStep === 2) { // Settings step (index 2)
+        const settingsPanel = document.getElementById('settingsPanel');
+        if (settingsPanel && !settingsPanel.classList.contains('show')) {
+          const oc = new bootstrap.Offcanvas('#settingsPanel');
+          oc.show();
+
+          // Scroll to top for consistent first-field view
+          const settingsBody = settingsPanel.querySelector('.offcanvas-body');
+          if (settingsBody) {
+            settingsBody.scrollTop = 0;
+          }
+        }
+      }
+
       positionTooltip();
     };
     
@@ -3769,14 +3986,14 @@ STEP 6: FINAL RECOMMENDATION
         });
       }
     });
-    
+
     document.getElementById('gm-wt-prev').addEventListener('click', () => {
       if (currentStep > 0) {
         currentStep--;
         updateStep();
       }
     });
-    
+
     document.getElementById('gm-wt-skip').addEventListener('click', () => {
       tooltip.remove();
       mask.remove();
@@ -3784,7 +4001,7 @@ STEP 6: FINAL RECOMMENDATION
         el.classList.remove('gm-wt-highlight');
       });
     });
-    
+
     document.getElementById('gm-wt-close').addEventListener('click', () => {
       tooltip.remove();
       mask.remove();
@@ -3792,9 +4009,9 @@ STEP 6: FINAL RECOMMENDATION
         el.classList.remove('gm-wt-highlight');
       });
     });
-    
+
     // Keyboard navigation
-    document.addEventListener('keydown', (e) => {
+    const handleKeyDown = (e) => {
       if (document.getElementById('gm-wt-tooltip')) {
         if (e.key === 'ArrowRight') {
           document.getElementById('gm-wt-next').click();
@@ -3804,14 +4021,26 @@ STEP 6: FINAL RECOMMENDATION
           document.getElementById('gm-wt-close').click();
         }
       }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup on tooltip removal
+    tooltip.addEventListener('remove', () => {
+      document.removeEventListener('keydown', handleKeyDown);
     });
-    
+
     // Handle window resize
     window.addEventListener('resize', positionTooltip);
-    
+
     // Initialize
     updateStep();
   }
+
+  // Expose for external callers (disclaimer/toast/button)
+  window.startWalkthrough = startWalkthrough;
+  // Backward-compat alias if other code calls this name:
+  window.startGoldMindTour = startWalkthrough;
 })();
 </script>
 </body>
