@@ -2,16 +2,36 @@
 import os
 import math
 import datetime as dt
+import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 import numpy as np
 import pandas as pd
+import yfinance as yf
 
 TD_BASE = os.getenv("TWELVE_DATA_BASE", os.getenv("TWELVEDATA_BASE", "https://api.twelvedata.com"))
 TD_KEY  = os.getenv("TWELVE_DATA_API_KEY", os.getenv("TWELVEDATA_API_KEY", ""))
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
 FRED_KEY  = os.getenv("FRED_API_KEY", "")
+ALPHA_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
+YF_TIMEOUT = float(os.getenv("YFINANCE_TIMEOUT", "20"))
+OHLC_CACHE_TTL = int(os.getenv("AGGREGATOR_OHLC_CACHE_TTL", "90"))
+GOLDPRICEZ_KEY = os.getenv("GOLDPRICEZ_API_KEY", "")
+GOLDPRICEZ_BASE = os.getenv("GOLDPRICEZ_BASE", "https://www.goldapi.io/api")
+
+_OHLC_CACHE: Dict[Tuple[str, str, str], Tuple[dt.datetime, pd.DataFrame]] = {}
+
+_YF_SYMBOL_MAP = {
+    "XAU": "XAUUSD=X",
+    "XAUUSD": "XAUUSD=X",
+    "XAU/USD": "XAUUSD=X",
+    "GC=F": "GC=F",
+    "DXY": "DX-Y.NYB",
+    "^VIX": "^VIX",
+    "GDX": "GDX",
+    "GLD": "GLD",
+}
 
 # --- Public: UI tile catalog ---------------------------------------------------
 def list_indicators() -> List[Dict[str, Any]]:
@@ -53,6 +73,9 @@ async def run_insights(
         px = await _fetch_ohlc(symbol, _interval(timeframe), range)
         if px.empty:
             raise RuntimeError("No price data")
+        src = px.attrs.get("source")
+        if src:
+            out.setdefault("sources", []).append(src)
     except Exception as e:
         out["errors"].append({"stage": "prices", "detail": str(e)})
         return out
@@ -153,6 +176,7 @@ async def run_insights(
 
     # --- simple, readable summary
     out["summary"] = _build_summary(out["indicators"])
+    out["sources"] = list(dict.fromkeys(out.get("sources", [])))
     return out
 
 # --- helpers -------------------------------------------------------------------
@@ -161,10 +185,39 @@ def _interval(tf: str) -> str:
     return {"1h":"1h", "4h":"4h", "1d":"1day", "1wk":"1week"}.get(tf, "1day")
 
 async def _fetch_ohlc(symbol: str, interval: str, range_: str) -> pd.DataFrame:
+    key = (symbol, interval, range_)
+    now = dt.datetime.utcnow()
+    cached = _OHLC_CACHE.get(key)
+    if cached:
+        ts, df_cached = cached
+        if (now - ts).total_seconds() < OHLC_CACHE_TTL:
+            return df_cached.copy()
+
+    errors: List[str] = []
+    for fetcher in (_fetch_ohlc_twelvedata, _fetch_ohlc_yfinance, _fetch_ohlc_alphavantage, _fetch_ohlc_goldpricez):
+        try:
+            df = await fetcher(symbol, interval, range_)
+            if df is not None and not df.empty:
+                _OHLC_CACHE[key] = (now, df)
+                return df.copy()
+        except Exception as exc:
+            errors.append(str(exc))
+            continue
+
+    raise RuntimeError("; ".join(errors) or "All providers failed")
+
+
+async def _fetch_ohlc_twelvedata(symbol: str, interval: str, range_: str) -> Optional[pd.DataFrame]:
     if not TD_KEY:
-        raise RuntimeError("TWELVE_DATA_API_KEY missing")
+        return None
     url = f"{TD_BASE}/time_series"
-    params = {"symbol": symbol, "interval": interval, "outputsize": _outputsize(range_, interval), "apikey": TD_KEY, "format":"JSON"}
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "outputsize": _outputsize(range_, interval),
+        "apikey": TD_KEY,
+        "format": "JSON",
+    }
     async with httpx.AsyncClient(timeout=20.0) as client:
         r = await client.get(url, params=params)
         r.raise_for_status()
@@ -172,10 +225,109 @@ async def _fetch_ohlc(symbol: str, interval: str, range_: str) -> pd.DataFrame:
     if "values" not in js:
         raise RuntimeError(f"TwelveData error: {js}")
     df = pd.DataFrame(js["values"])
-    for c in ["open","high","low","close"]:
+    for c in ["open", "high", "low", "close"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
     df["datetime"] = pd.to_datetime(df["datetime"])
     df = df.sort_values("datetime").set_index("datetime")
+    df.attrs["source"] = "TwelveData"
+    return df
+
+
+async def _fetch_ohlc_yfinance(symbol: str, interval: str, range_: str) -> Optional[pd.DataFrame]:
+    yf_symbol = _YF_SYMBOL_MAP.get(symbol, symbol)
+    yf_interval = {"1day": "1d", "1week": "1wk", "1h": "1h"}.get(interval, "1d")
+    period = _yf_period(range_)
+
+    def _download() -> pd.DataFrame:
+        ticker = yf.Ticker(yf_symbol)
+        return ticker.history(period=period, interval=yf_interval)
+
+    hist = await asyncio.to_thread(_download)
+    if hist is None or hist.empty:
+        raise RuntimeError("yfinance returned no data")
+    df = hist.rename(columns={"Open": "open", "High": "high", "Low": "low", "Close": "close"})
+    df = df[["open", "high", "low", "close"]].dropna()
+    df.index = pd.to_datetime(df.index)
+    df.attrs["source"] = "Yahoo Finance"
+    return df
+
+
+async def _fetch_ohlc_alphavantage(symbol: str, interval: str, range_: str) -> Optional[pd.DataFrame]:
+    if not ALPHA_KEY or interval != "1day":
+        return None
+    params: Dict[str, Any]
+    url = "https://www.alphavantage.co/query"
+    outputsize = "compact" if "m" in range_ and range_.endswith("m") and int(range_.rstrip("m")) <= 6 else "full"
+
+    if "/" in symbol:
+        base, quote = symbol.replace("=", "/").split("/")
+        params = {
+            "function": "FX_DAILY",
+            "from_symbol": base,
+            "to_symbol": quote,
+            "apikey": ALPHA_KEY,
+            "outputsize": outputsize,
+        }
+        expected_key = "Time Series FX (Daily)"
+    else:
+        params = {
+            "function": "TIME_SERIES_DAILY_ADJUSTED",
+            "symbol": symbol,
+            "apikey": ALPHA_KEY,
+            "outputsize": outputsize,
+        }
+        expected_key = "Time Series (Daily)"
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.get(url, params=params)
+        r.raise_for_status()
+        js = r.json()
+
+    if expected_key not in js:
+        raise RuntimeError(f"AlphaVantage error: {js}")
+
+    rows = []
+    for k, v in js[expected_key].items():
+        rows.append({
+            "datetime": pd.to_datetime(k),
+            "open": float(v.get("1. open")),
+            "high": float(v.get("2. high")),
+            "low": float(v.get("3. low")),
+            "close": float(v.get("4. close")),
+        })
+    df = pd.DataFrame(rows).sort_values("datetime").set_index("datetime")
+    df.attrs["source"] = "Alpha Vantage"
+    return df
+
+
+async def _fetch_ohlc_goldpricez(symbol: str, interval: str, range_: str) -> Optional[pd.DataFrame]:
+    if not GOLDPRICEZ_KEY:
+        return None
+    if symbol.upper() not in {"XAU", "XAUUSD", "XAU/USD", "GC=F"}:
+        return None
+    url = f"{GOLDPRICEZ_BASE}/XAU/USD"
+    headers = {"x-access-token": GOLDPRICEZ_KEY, "Content-Type": "application/json"}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(url, headers=headers)
+        if r.status_code == 401:
+            raise RuntimeError("GoldPriceZ unauthorized (check key)")
+        r.raise_for_status()
+        js = r.json()
+    price = js.get("price") or js.get("price_gram_24k") or js.get("ask")
+    timestamp = js.get("timestamp") or js.get("time")
+    if price is None:
+        raise RuntimeError(f"GoldPriceZ payload missing price: {js}")
+    dt_obj = dt.datetime.utcfromtimestamp(timestamp) if isinstance(timestamp, (int, float)) else dt.datetime.utcnow()
+    df = pd.DataFrame(
+        {
+            "open": [float(price)],
+            "high": [float(price)],
+            "low": [float(price)],
+            "close": [float(price)],
+        },
+        index=[dt_obj],
+    )
+    df.attrs["source"] = "GoldPriceZ"
     return df
 
 def _outputsize(range_: str, interval: str) -> int:
@@ -187,6 +339,14 @@ def _outputsize(range_: str, interval: str) -> int:
         mos = int(range_.replace("m",""))
         return 22*mos if interval=="1day" else 1000
     return 1000
+
+
+def _yf_period(range_: str) -> str:
+    if range_.endswith("y"):
+        return f"{range_.rstrip('y')}y"
+    if range_.endswith("m"):
+        return f"{range_.rstrip('m')}mo"
+    return "6mo"
 
 async def _fetch_fred_series(series_id: str) -> pd.Series:
     if not FRED_KEY:

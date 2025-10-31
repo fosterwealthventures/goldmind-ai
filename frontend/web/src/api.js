@@ -1,32 +1,52 @@
-// src/api.js
+import { fetchHealth as fetchApiHealth, post as apiPost } from './apiClient';
+import { fetchComputeHealth, post as computePost } from './computeClient';
+
+export { API_BASE } from './apiClient';
+export { COMPUTE_BASE } from './computeClient';
+
+const stringifyBody = (value) => {
+  if (value === undefined || value === null) return 'null';
+  try {
+    return typeof value === 'string' ? value : JSON.stringify(value);
+  } catch {
+    return '[unserializable]';
+  }
+};
+
 export async function combinedHealth() {
   const [api, compute] = await Promise.allSettled([
-    fetchJSON(`${API_BASE}/health`),    // <-- backticks
-    fetchJSON(`${COMPUTE_BASE}/health`) // <-- backticks
+    fetchApiHealth(),
+    fetchComputeHealth(),
   ]);
   return { api, compute };
 }
 
 export async function predict(payload) {
-  const init = {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify(payload),
-  };
+  try {
+    return await apiPost('/predict', payload);
+  } catch (err) {
+    const status = err?.status ?? 0;
+    if (status && status < 500 && status !== 0) {
+      const formatted = stringifyBody(err?.body);
+      const apiErr = new Error(`API ${status}: ${formatted}`);
+      apiErr.status = status;
+      apiErr.body = err?.body;
+      throw apiErr;
+    }
 
-  // API first
-  const r = await fetchJSON(`${API_BASE}/predict`, init);      // <-- backticks
-  if (r.ok) return r.body;
-  if (r.status && r.status < 500 && r.status !== 0) {
-    throw new Error(`API ${r.status}: ${JSON.stringify(r.body)}`);
+    try {
+      return await computePost('/predict', payload);
+    } catch (computeErr) {
+      const computeStatus = computeErr?.status ?? 0;
+      const apiBody = stringifyBody(err?.body);
+      const computeBody = stringifyBody(computeErr?.body);
+      const merged = new Error(
+        `Predict failed. API ${status || 'ERR'}: ${apiBody} | Compute ${computeStatus || 'ERR'}: ${computeBody}`
+      );
+      merged.status = computeStatus || status || 0;
+      merged.apiError = err;
+      merged.computeError = computeErr;
+      throw merged;
+    }
   }
-
-  // Fallback to Compute
-  const f = await fetchJSON(`${COMPUTE_BASE}/predict`, init);  // <-- backticks
-  if (f.ok) return f.body;
-
-  throw new Error(
-    `Both API and Compute failed. API ${r.status}: ${JSON.stringify(r.body)} | ` +
-    `Compute ${f.status}: ${JSON.stringify(f.body)}`
-  );
 }

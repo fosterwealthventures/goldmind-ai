@@ -53,6 +53,7 @@ export const fetchVersion = () => get('/version');
 export const fetchSummary           = (params) => get('/summary', params);
 export const fetchAlerts            = () => get('/v1/alerts');
 export const fetchFeatureImportance = (params) => get('/v1/feature-importance', params);
+export const fetchResearchHighlights = (params) => get('/research/highlights', params);
 
 // Bias as GET (no preflight)
 export const fetchBias = ({ symbol, timeframe }) =>

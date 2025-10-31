@@ -6,8 +6,8 @@ numpy==2.2.6
 pandas==2.3.2
 numba==0.61.2
 llvmlite==0.44.0
-pandas-ta==0.4.67b0
 
 yfinance==0.2.48
 requests==2.31.0
 pydantic==2.9.2
+python-dotenv==1.0.1

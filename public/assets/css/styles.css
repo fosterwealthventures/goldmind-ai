@@ -126,6 +126,7 @@ body.theme-light .site-header{ background:rgba(255,255,255,.85); }
 .brand-kicker{ display:block; font-size:.78rem; color:var(--text-secondary); }
 .brand-verse{ display:block; font-size:.72rem; color:var(--text-secondary); opacity:.85; margin-top:2px; letter-spacing:.15px; }
 body.theme-light .brand-verse{ opacity:.75; }
+.header-actions{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:flex-end; }
 
 /* ---------- App Shell ---------- */
 .app{ display:grid; grid-template-columns:260px 1fr; gap:20px; padding:24px; }

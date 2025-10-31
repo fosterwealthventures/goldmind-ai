@@ -6,6 +6,9 @@ from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Request, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 APP_NAME = "GoldMIND AI"
 APP_VERSION = "v1.2.1-insights"
@@ -177,140 +180,105 @@ async def compute_proxy_api_alias(path: str, request: Request, x_api_key: Option
 # =======================
 # NEW DASHBOARD ENDPOINTS (with yfinance + Twelve Data + fallbacks)
 # =======================
-import os, requests
-from fastapi import HTTPException
-import yfinance as yf
-import pandas_ta as ta
-import pandas as pd
-from datetime import datetime
+import asyncio
+import os
 
-ALPHA_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
-TWELVE_KEY = os.getenv("TWELVE_DATA_API_KEY")
-METALPRICE_KEY = os.getenv("METALPRICE_API_KEY")
+import requests
+from fastapi import HTTPException
+
 COMPUTE_URL = os.getenv("COMPUTE_URL", "http://localhost:8001")
 INTERNAL_SHARED_SECRET = os.getenv("INTERNAL_SHARED_SECRET")
+
+def _compute_headers() -> Dict[str, str]:
+    headers: Dict[str, str] = {}
+    if INTERNAL_SHARED_SECRET:
+        headers["X-Internal-Secret"] = INTERNAL_SHARED_SECRET
+    return headers
+
+def _compute_url(path: str) -> str:
+    return f"{COMPUTE_URL.rstrip('/')}/{path.lstrip('/')}"
+
+async def _compute_request(method: str, path: str, *, params: Optional[Dict[str, Any]] = None, json: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _do_request() -> requests.Response:
+        return requests.request(
+            method,
+            _compute_url(path),
+            params=params,
+            json=json,
+            headers=_compute_headers(),
+            timeout=10,
+        )
+
+    response = await asyncio.to_thread(_do_request)
+    if response.status_code >= 400:
+        try:
+            detail = response.json()
+        except Exception:
+            detail = response.text
+        raise HTTPException(status_code=502, detail=f"Compute error {response.status_code}: {detail}")
+
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="Compute returned invalid JSON") from exc
 
 # ---- Spot Price ----
 @app.get("/market/gold/spot", tags=["market"])
 async def get_spot():
-    try:
-        ticker = yf.Ticker("GC=F")
-        data = ticker.history(period="1d", interval="5m")
-        return {
-            "symbol": "GC=F",
-            "last_price": float(data["Close"].iloc[-1]),
-            "timestamp": str(data.index[-1])
-        }
-    except Exception:
-        try:
-            url = f"https://api.twelvedata.com/price?symbol=XAU/USD&apikey={TWELVE_KEY}"
-            r = requests.get(url).json()
-            return {"symbol": "XAUUSD", "last_price": float(r.get("price")), "timestamp": datetime.utcnow().isoformat()}
-        except Exception:
-            try:
-                url = f"https://metalpriceapi.com/api/latest?api_key={METALPRICE_KEY}&base=USD&currencies=XAU"
-                r = requests.get(url).json()
-                return {"symbol": "XAU", "last_price": r["rates"]["XAU"], "timestamp": datetime.utcnow().isoformat()}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Spot fetch failed: {str(e)}")
+    return await _compute_request("GET", "/market/gold/spot")
 
 # ---- Futures ----
 @app.get("/market/gold/futures", tags=["market"])
 async def get_futures():
-    try:
-        ticker = yf.Ticker("GC=F")
-        data = ticker.history(period="1d", interval="1d")
-        return {
-            "symbol": "GC=F",
-            "last_price": float(data["Close"].iloc[-1]),
-            "timestamp": str(data.index[-1])
-        }
-    except Exception:
-        try:
-            url = f"https://metalpriceapi.com/api/latest?api_key={METALPRICE_KEY}&base=USD&currencies=XAU"
-            r = requests.get(url).json()
-            return {"symbol": "GC=F", "last_price": r["rates"]["XAU"], "timestamp": datetime.utcnow().isoformat()}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Futures fetch failed: {str(e)}")
+    return await _compute_request("GET", "/market/gold/futures")
 
 # ---- ETF ----
 @app.get("/market/gold/etf", tags=["market"])
 async def get_etf():
-    try:
-        ticker = yf.Ticker("GLD")
-        data = ticker.history(period="1d", interval="1d")
-        return {
-            "symbol": "GLD",
-            "last_price": float(data["Close"].iloc[-1]),
-            "timestamp": str(data.index[-1])
-        }
-    except Exception:
-        try:
-            url = f"https://api.twelvedata.com/price?symbol=GLD&apikey={TWELVE_KEY}"
-            r = requests.get(url).json()
-            return {"symbol": "GLD", "last_price": float(r.get("price")), "timestamp": datetime.utcnow().isoformat()}
-        except Exception:
-            try:
-                url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=GLD&apikey={ALPHA_KEY}"
-                r = requests.get(url).json()
-                last = list(r["Time Series (Daily)"].items())[0]
-                return {"symbol": "GLD", "last_price": float(last[1]["4. close"]), "timestamp": last[0]}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"ETF fetch failed: {str(e)}")
+    return await _compute_request("GET", "/market/gold/etf")
 
 # ---- Options (ETF options from GLD) ----
 @app.get("/market/gold/options", tags=["market"])
 async def get_options():
-    try:
-        ticker = yf.Ticker("GLD")
-        exp = ticker.options[0]
-        chain = ticker.option_chain(exp)
-        return {
-            "symbol": "GLD",
-            "expiration": exp,
-            "calls": chain.calls.head(5).to_dict(),
-            "puts": chain.puts.head(5).to_dict()
-        }
-    except Exception:
-        return {"message": "Options data not available on free sources"}
+    return await _compute_request("GET", "/market/gold/options")
 
 # ---- Indicators ----
 @app.get("/v1/indicators", tags=["indicators"])
 async def get_indicators():
-    try:
-        ticker = yf.Ticker("GC=F")
-        df = ticker.history(period="6mo", interval="1d")
-        df["SMA"] = ta.sma(df["Close"], length=20)
-        df["EMA"] = ta.ema(df["Close"], length=20)
-        df["RSI"] = ta.rsi(df["Close"], length=14)
-        macd = ta.macd(df["Close"])
-        df["MACD"] = macd.iloc[:,0]
-        bb = ta.bbands(df["Close"])
-        df["Bollinger_Upper"] = bb.iloc[:,0]
-        df["Bollinger_Lower"] = bb.iloc[:,2]
-        df["Stochastic"] = ta.stoch(df["High"], df["Low"], df["Close"])
-        df["DXY"] = 104
-        df["Real_Yields"] = 1.9
-        df["COT"] = 120000
-        df["Miners"] = 28.5
-        df["VIX"] = 15.2
-        df["Central_Bank"] = 9200
-        latest = df.tail(50)
-        return latest.to_dict(orient="list")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Indicator fetch failed: {str(e)}")
+    return await _compute_request("GET", "/v1/indicators")
 
 # ---- Decision Engine ----
 @app.get("/v1/decision", tags=["decision"])
 async def get_decision(symbol: str = "XAUUSD"):
     try:
+        payload = {
+            "symbol": symbol,
+            "horizon": "1d",
+            "amount": 1.0,
+            "style": "day",
+            "interval": "1d",
+        }
+        headers = {}
+        if INTERNAL_SHARED_SECRET:
+            headers["X-Internal-Secret"] = INTERNAL_SHARED_SECRET
         r = requests.post(
-            f"{COMPUTE_URL}/predict",
-            json={"symbol": symbol},
-            headers={"X-Internal-Secret": INTERNAL_SHARED_SECRET}
+            f"{COMPUTE_URL.rstrip('/')}/predict",
+            json=payload,
+            headers=headers,
+            timeout=10,
         )
+        if r.status_code >= 400:
+            try:
+                detail = r.json()
+            except Exception:
+                detail = r.text
+            raise HTTPException(status_code=502, detail=f"Compute error: {detail}")
+
         pred = r.json()
-        risk_score = float(pred.get("confidence", 0.5))
+        confidence = pred.get("confidence")
+        if confidence is None:
+            raise HTTPException(status_code=502, detail="Compute response missing confidence score")
+        risk_score = float(confidence)
         allocation_pct = round(risk_score * 100 * 0.5, 2)
         return {
             "timestamps": [datetime.utcnow().isoformat()],
@@ -319,6 +287,15 @@ async def get_decision(symbol: str = "XAUUSD"):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Decision fetch failed: {str(e)}")
+
+
+@app.get("/research/highlights", tags=["research"])
+async def research_highlights(symbol: str = Query("XAUUSD"), timeframe: str = Query("1d"), range_: str = Query("6m")):
+    return await _compute_request(
+        "GET",
+        "/insights/narrative",
+        params={"symbol": symbol, "timeframe": timeframe, "range_": range_},
+    )
 
 # =======================
 # END DASHBOARD ENDPOINTS
