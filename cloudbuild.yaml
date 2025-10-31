@@ -1,5 +1,7 @@
 # cloudbuild.yaml  (dual-service: api + compute, with smoke + summary)
-
+options:
+  substitutionOption: ALLOW_LOOSE
+  
 substitutions:
   _REGION: us-central1
   _ARTIFACT_REPO: goldmind
@@ -8,7 +10,7 @@ substitutions:
   _API_DOMAIN: https://api.fwvgoldmindai.com
   _ENV: prod
   _USE_YFINANCE: "true"
-  _STRICT_SMOKE: "true"
+  _STRICT: "true"
 
 timeout: "1200s"
 
@@ -92,9 +94,9 @@ steps:
       - |
         set -euo pipefail
         API="${_API_DOMAIN}"
-        STRICT="${_STRICT_SMOKE}"
-        if [ -z "${STRICT}" ]; then STRICT=true; fi
-        echo "Smoke (API) against $API  STRICT=$STRICT"
+        # Pull value from user substitution (string "true"/"false")
+        strict="${_STRICT:-true}"
+        echo "Smoke (API) against $API  STRICT=${strict}"
 
         # Wait for cold start
         for i in $(seq 1 24); do
@@ -110,7 +112,7 @@ steps:
           else
             code=$?
             echo "  ❌ $url (curl exit $code)"
-            [ "$STRICT" = "true" ] && fail=1
+            [ "${strict}" = "true" ] && fail=1
           fi
         }
 
@@ -126,9 +128,9 @@ steps:
 
         # POST endpoints
         curl -fsS -X POST "${API}/predict" -H "Content-Type: application/json" \
-             -d '{"symbol":"XAUUSD","horizon":"1d","amount":1.0,"indicators":["sma","ema","rsi"]}' >/dev/null || { echo "  ❌ /predict"; [ "$STRICT" = "true" ] && fail=1; }
+             -d '{"symbol":"XAUUSD","horizon":"1d","amount":1.0,"indicators":["sma","ema","rsi"]}' >/dev/null || { echo "  ❌ /predict"; [ "${strict}" = "true" ] && fail=1; }
         curl -fsS -X POST "${API}/compute/predict" -H "Content-Type: application/json" \
-             -d '{"symbol":"XAUUSD","horizon":"1d","amount":1.0}' >/dev/null || { echo "  ❌ /compute/predict"; [ "$STRICT" = "true" ] && fail=1; }
+             -d '{"symbol":"XAUUSD","horizon":"1d","amount":1.0}' >/dev/null || { echo "  ❌ /compute/predict"; [ "${strict}" = "true" ] && fail=1; }
 
         [ $fail -eq 0 ] || { echo "Smoke tests failed"; exit 1; }
 
@@ -171,4 +173,3 @@ steps:
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA
-https://kilocode.gallerycdn.vsassets.io/extensions/kilocode/kilo-code/4.99.2/1759520784673/Microsoft.VisualStudio.Services.Icons.Default
