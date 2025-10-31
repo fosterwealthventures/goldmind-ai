@@ -1,7 +1,8 @@
 # cloudbuild.yaml  (dual-service: api + compute, with smoke + summary)
+
 options:
   substitutionOption: ALLOW_LOOSE
-  
+
 substitutions:
   _REGION: us-central1
   _ARTIFACT_REPO: goldmind
@@ -10,7 +11,7 @@ substitutions:
   _API_DOMAIN: https://api.fwvgoldmindai.com
   _ENV: prod
   _USE_YFINANCE: "true"
-  _STRICT: "true"
+  _STRICT: "true"          # strict smoke tests (true/false)
 
 timeout: "1200s"
 
@@ -26,35 +27,41 @@ steps:
 
   - id: 02-build-api
     name: gcr.io/cloud-builders/docker
+    env:
+      - DOCKER_BUILDKIT=1
+      - BUILDKIT_PROGRESS=plain
     args:
       - build
       - -f
       - api/Dockerfile
       - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$BUILD_ID
       - api
 
   - id: 03-build-compute
     name: gcr.io/cloud-builders/docker
+    env:
+      - DOCKER_BUILDKIT=1
+      - BUILDKIT_PROGRESS=plain
     args:
       - build
       - -f
       - compute/Dockerfile
       - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID
       - compute
 
   - id: 04-push-api
     name: gcr.io/cloud-builders/docker
     args:
       - push
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$BUILD_ID
 
   - id: 05-push-compute
     name: gcr.io/cloud-builders/docker
     args:
       - push
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID
 
   - id: 06-deploy-api
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -64,7 +71,7 @@ steps:
       - >
         set -euo pipefail;
         gcloud run deploy ${_SERVICE_API}
-        --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA
+        --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$BUILD_ID
         --region ${_REGION}
         --platform managed
         --allow-unauthenticated
@@ -79,7 +86,7 @@ steps:
       - >
         set -euo pipefail;
         gcloud run deploy ${_SERVICE_COMPUTE}
-        --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA
+        --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID
         --region ${_REGION}
         --platform managed
         --no-allow-unauthenticated
@@ -93,14 +100,13 @@ steps:
       - -c
       - |
         set -euo pipefail
-        API="${_API_DOMAIN}"
-        # Pull value from user substitution (string "true"/"false")
+        api_base="${_API_DOMAIN}"
         strict="${_STRICT:-true}"
-        echo "Smoke (API) against $API  STRICT=${strict}"
+        echo "Smoke (API) against ${api_base}  STRICT=${strict}"
 
         # Wait for cold start
         for i in $(seq 1 24); do
-          if curl -fsS "${API}/health" >/dev/null; then echo "OK: /health"; break; fi
+          if curl -fsS "${api_base}/health" >/dev/null; then echo "OK: /health"; break; fi
           echo "Waiting for API /health (attempt $i)..."; sleep 5
         done
 
@@ -117,19 +123,19 @@ steps:
         }
 
         # GET endpoints
-        check "${API}/"
-        check "${API}/api/summary"
-        check "${API}/market/gold/series"
-        check "${API}/v1/predict?symbol=XAUUSD"
-        check "${API}/v1/bias?symbol=XAUUSD"
-        check "${API}/v1/feature-importance"
-        check "${API}/v1/bias/influence"
-        check "${API}/v1/alerts"
+        check "${api_base}/"
+        check "${api_base}/api/summary"
+        check "${api_base}/market/gold/series"
+        check "${api_base}/v1/predict?symbol=XAUUSD"
+        check "${api_base}/v1/bias?symbol=XAUUSD"
+        check "${api_base}/v1/feature-importance"
+        check "${api_base}/v1/bias/influence"
+        check "${api_base}/v1/alerts"
 
         # POST endpoints
-        curl -fsS -X POST "${API}/predict" -H "Content-Type: application/json" \
+        curl -fsS -X POST "${api_base}/predict" -H "Content-Type: application/json" \
              -d '{"symbol":"XAUUSD","horizon":"1d","amount":1.0,"indicators":["sma","ema","rsi"]}' >/dev/null || { echo "  ❌ /predict"; [ "${strict}" = "true" ] && fail=1; }
-        curl -fsS -X POST "${API}/compute/predict" -H "Content-Type: application/json" \
+        curl -fsS -X POST "${api_base}/compute/predict" -H "Content-Type: application/json" \
              -d '{"symbol":"XAUUSD","horizon":"1d","amount":1.0}' >/dev/null || { echo "  ❌ /compute/predict"; [ "${strict}" = "true" ] && fail=1; }
 
         [ $fail -eq 0 ] || { echo "Smoke tests failed"; exit 1; }
@@ -141,15 +147,15 @@ steps:
       - -c
       - |
         set -euo pipefail
-        URL=$(gcloud run services describe ${_SERVICE_COMPUTE} --region ${_REGION} --format="value(status.url)")
-        echo "Compute URL: $URL"
+        svc_url=$(gcloud run services describe ${_SERVICE_COMPUTE} --region ${_REGION} --format="value(status.url)")
+        echo "Compute URL: ${svc_url}"
         # Expect 401/403 for private service; treat as pass
-        code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/health" || echo 000)
-        echo "Compute /health HTTP $code"
-        if [ "$code" = "200" ] || [ "$code" = "401" ] || [ "$code" = "403" ]; then
+        http_code=$(curl -s -o /dev/null -w '%{http_code}' "${svc_url}/health" || echo 000)
+        echo "Compute /health HTTP ${http_code}"
+        if [ "${http_code}" = "200" ] || [ "${http_code}" = "401" ] || [ "${http_code}" = "403" ]; then
           echo "Compute smoke OK"
         else
-          echo "Compute smoke FAILED (code $code)"; exit 1
+          echo "Compute smoke FAILED (code ${http_code})"; exit 1
         fi
 
   - id: 10-summary
@@ -159,17 +165,17 @@ steps:
       - -c
       - |
         set -e
-        API_URL=$(gcloud run services describe ${_SERVICE_API} --region ${_REGION} --format="value(status.url)")
-        COMP_URL=$(gcloud run services describe ${_SERVICE_COMPUTE} --region ${_REGION} --format="value(status.url)")
+        api_url=$(gcloud run services describe ${_SERVICE_API} --region ${_REGION} --format="value(status.url)")
+        comp_url=$(gcloud run services describe ${_SERVICE_COMPUTE} --region ${_REGION} --format="value(status.url)")
         echo "------------------------------"
         echo "Build ID: $BUILD_ID"
-        echo "API image: ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA"
-        echo "Compute image: ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA"
-        echo "API (Cloud Run):  $API_URL"
+        echo "API image: ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$BUILD_ID"
+        echo "Compute image: ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID"
+        echo "API (Cloud Run):  ${api_url}"
         echo "API (Domain):     ${_API_DOMAIN}"
-        echo "Compute (Cloud Run): $COMP_URL"
+        echo "Compute (Cloud Run): ${comp_url}"
         echo "------------------------------"
 
 images:
-  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$SHORT_SHA
-  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_API}:$BUILD_ID
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_COMPUTE}:$BUILD_ID
