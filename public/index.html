@@ -1368,7 +1368,7 @@
 <!-- Right-side actions (wraps on small screens) -->
 <div class="ms-auto navbar-actions nav-actions d-flex align-items-center gap-2 flex-wrap" id="topActions">
 <a class="btn btn-sm btn-outline-gold" href="#resolveBtn" title="Jump to trading section">⚡ Skip to Trading</a>
-<button class="btn btn-sm btn-outline-light" data-bs-target="#helpModal" data-bs-toggle="modal" id="helpBtn" type="button">Help</button>
+<button class="btn btn-sm settings-btn gm-settings-btn" data-bs-target="#helpModal" data-bs-toggle="modal" id="helpBtn" type="button">Help</button>
 <button class="btn btn-sm btn-outline-warning" id="enableNotificationsBtn" type="button">🔔 Enable Alerts</button>
 <button class="btn btn-sm btn-outline-light" id="walkthroughBtn" type="button">Walkthrough</button>
 <div class="form-check form-switch m-0" title="Toggle Theme">
@@ -3894,6 +3894,8 @@ STEP 6: FINAL RECOMMENDATION
     
     // Function to position tooltip centered over target element
     const positionTooltip = () => {
+      if (!document.body.contains(tooltip)) return;
+
       const element = document.querySelector(STEPS[currentStep].selector);
       if (element) {
         // Remove previous highlight
@@ -3905,23 +3907,28 @@ STEP 6: FINAL RECOMMENDATION
         element.classList.add('gm-wt-highlight');
 
         const rect = element.getBoundingClientRect();
-        const tooltipRect = { width: 420, height: 280 }; // Fixed size
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const tooltipWidth = tooltipRect.width || tooltip.offsetWidth || 420;
+        const tooltipHeight = tooltipRect.height || tooltip.offsetHeight || 280;
 
         // Calculate center position over target
         const targetCenterX = rect.left + (rect.width / 2);
         const targetCenterY = rect.top + (rect.height / 2);
 
-        let left = targetCenterX - (tooltipRect.width / 2);
-        let top = targetCenterY - (tooltipRect.height / 2);
+        let left = targetCenterX - (tooltipWidth / 2);
+        let top = targetCenterY - (tooltipHeight / 2);
+
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || tooltipWidth;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || tooltipHeight;
 
         // Clamp to viewport boundaries while maintaining overlap
         if (left < 10) left = 10;
-        if (left + tooltipRect.width > window.innerWidth - 10) {
-          left = window.innerWidth - tooltipRect.width - 10;
+        if (left + tooltipWidth > viewportWidth - 10) {
+          left = viewportWidth - tooltipWidth - 10;
         }
         if (top < 10) top = 10;
-        if (top + tooltipRect.height > window.innerHeight - 10) {
-          top = window.innerHeight - tooltipRect.height - 10;
+        if (top + tooltipHeight > viewportHeight - 10) {
+          top = viewportHeight - tooltipHeight - 10;
         }
 
         tooltip.style.top = `${top}px`;
@@ -3969,7 +3976,18 @@ STEP 6: FINAL RECOMMENDATION
         }
       }
 
-      positionTooltip();
+      requestAnimationFrame(positionTooltip);
+    };
+    
+    const endTour = () => {
+      window.removeEventListener('resize', positionTooltip);
+      window.removeEventListener('scroll', positionTooltip);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.querySelectorAll('.gm-wt-highlight').forEach(el => {
+        el.classList.remove('gm-wt-highlight');
+      });
+      if (tooltip.parentNode) tooltip.parentNode.removeChild(tooltip);
+      if (mask.parentNode) mask.parentNode.removeChild(mask);
     };
     
     // Event listeners
@@ -3978,12 +3996,7 @@ STEP 6: FINAL RECOMMENDATION
         currentStep++;
         updateStep();
       } else {
-        // Close walkthrough
-        tooltip.remove();
-        mask.remove();
-        document.querySelectorAll('.gm-wt-highlight').forEach(el => {
-          el.classList.remove('gm-wt-highlight');
-        });
+        endTour();
       }
     });
 
@@ -3995,19 +4008,11 @@ STEP 6: FINAL RECOMMENDATION
     });
 
     document.getElementById('gm-wt-skip').addEventListener('click', () => {
-      tooltip.remove();
-      mask.remove();
-      document.querySelectorAll('.gm-wt-highlight').forEach(el => {
-        el.classList.remove('gm-wt-highlight');
-      });
+      endTour();
     });
 
     document.getElementById('gm-wt-close').addEventListener('click', () => {
-      tooltip.remove();
-      mask.remove();
-      document.querySelectorAll('.gm-wt-highlight').forEach(el => {
-        el.classList.remove('gm-wt-highlight');
-      });
+      endTour();
     });
 
     // Keyboard navigation
@@ -4025,16 +4030,14 @@ STEP 6: FINAL RECOMMENDATION
 
     document.addEventListener('keydown', handleKeyDown);
 
-    // Cleanup on tooltip removal
-    tooltip.addEventListener('remove', () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    });
-
     // Handle window resize
     window.addEventListener('resize', positionTooltip);
+    window.addEventListener('scroll', positionTooltip, { passive: true });
 
     // Initialize
     updateStep();
+    // re-run after layout settles (e.g., offcanvas animation)
+    requestAnimationFrame(positionTooltip);
   }
 
   // Expose for external callers (disclaimer/toast/button)
