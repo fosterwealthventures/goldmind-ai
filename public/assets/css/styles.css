@@ -379,13 +379,49 @@ button[data-bs-target="#settingsPanel"] { margin-top:.5rem; }
 #gmDisclaimerOverlay .gm-card li { color: var(--gm-muted) !important; }
 
 /* Help modal */
-#helpModal .modal-content {
- background: var(--gm-elev) !important;
- color: var(--gm-fg) !important;
- border: 1px solid var(--gm-border) !important;
+#helpModal .modal-content{
+  background:var(--gm-elev) !important;
+  color:var(--gm-fg) !important;
+  border:1px solid var(--gm-border) !important;
 }
-#helpModal .accordion-button { color: var(--gm-fg) !important; }
-#helpModal .accordion-body  { color: var(--gm-muted) !important; }
+#helpModal .modal-title,
+#helpModal .modal-body,
+#helpModal .modal-body h5,
+#helpModal .modal-body p,
+#helpModal .modal-body li,
+#helpModal .modal-body strong{
+  color:var(--gm-fg) !important;
+}
+#helpModal .modal-body h5{
+  font-weight:700;
+  margin-bottom:.75rem;
+}
+#helpModal .modal-body strong{
+  font-weight:600;
+}
+#helpModal .modal-body .text-primary{
+  color:var(--gm-accent) !important;
+}
+body.theme-light #helpModal .modal-body .text-primary{
+  color:var(--gm-fg) !important;
+}
+#helpModal .modal-body .alert{
+  background:rgba(56,69,99,.18);
+  border-color:var(--gm-border) !important;
+  color:var(--gm-fg) !important;
+}
+body.theme-light #helpModal .modal-body .alert{
+  background:rgba(15,23,42,.08);
+}
+#helpModal .alert strong{
+  color:var(--gm-fg) !important;
+}
+#helpModal .accordion-button{
+  color:var(--gm-fg) !important;
+}
+#helpModal .accordion-body{
+  color:var(--gm-muted) !important;
+}
 
 /* Alerts (enable/test banners & list items) */
 #alertsBanner, .gm-banner {
