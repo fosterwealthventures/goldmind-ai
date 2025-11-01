@@ -292,7 +292,7 @@ button[data-bs-target="#settingsPanel"]{
   position:static !important;
   top:auto !important; left:auto !important; transform:none !important;
   display:inline-flex; align-items:center; justify-content:center;
-  height:38px; padding:0 14px; margin:0 0 0 8px; /* space from neighbor */
+  height:38px; padding:0 14px; margin:0; /* rely on container gap */
   border-radius:999px; font-weight:600; line-height:1; white-space:nowrap;
   background:var(--btn-info-bg,#0ea5e9);
   color:var(--btn-info-fg,#ffffff);
@@ -423,6 +423,47 @@ body.theme-light #helpModal .modal-body .alert{
   color:var(--gm-muted) !important;
 }
 
+#helpModal .modal-body,
+#helpModal .modal-body li,
+#helpModal .modal-body p{
+  opacity:1 !important;
+}
+#helpModal .modal-body li{
+  color:var(--gm-fg) !important;
+}
+#helpModal .modal-body li strong{
+  color:var(--gm-fg) !important;
+}
+#helpModal .modal-body ol{
+  margin-bottom:1.5rem;
+}
+
+/* Enable alerts button - keep branded gold in all themes */
+#enableNotificationsBtn{
+  background:transparent;
+  color:var(--gold);
+  border:1px solid rgba(255,215,0,.7);
+  transition:background .2s ease,color .2s ease,box-shadow .2s ease;
+}
+#enableNotificationsBtn:hover,
+#enableNotificationsBtn:focus-visible{
+  background:rgba(255,215,0,.22);
+  color:#0b0f16;
+  border-color:var(--gold);
+  box-shadow:0 0 0 3px rgba(255,215,0,.25);
+}
+body.theme-light #enableNotificationsBtn{
+  color:#b0780f;
+  border-color:rgba(176,120,15,.85);
+}
+body.theme-light #enableNotificationsBtn:hover,
+body.theme-light #enableNotificationsBtn:focus-visible{
+  background:#ffd700;
+  color:#082032;
+  border-color:#d4af37;
+  box-shadow:0 0 0 3px rgba(212,175,55,.3);
+}
+
 /* Alerts (enable/test banners & list items) */
 #alertsBanner, .gm-banner {
  background: var(--gm-elev) !important;
@@ -436,7 +477,7 @@ body.theme-light #helpModal .modal-body .alert{
 }
 
 /* Buttons/links inside these surfaces */
-.gm-btn, .gm-link, #enableNotificationsBtn, #testAlert, #walkthroughBtn, #helpBtn, #gmAgreeBtn, #gmDeclineBtn {
+.gm-btn, .gm-link, #testAlert, #gmAgreeBtn, #gmDeclineBtn {
  color: var(--gm-fg);
  border-color: var(--gm-border);
 }
