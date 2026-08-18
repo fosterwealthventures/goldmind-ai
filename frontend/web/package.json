@@ -4,8 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "recovery:materialize": "node scripts/materialize-recovery.mjs",
+    "predev": "node scripts/materialize-recovery.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/materialize-recovery.mjs",
     "build": "vite build",
+    "prelint": "node scripts/materialize-recovery.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
